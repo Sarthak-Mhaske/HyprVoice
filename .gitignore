@@ -1,0 +1,43 @@
+# Models (too large for git)
+*.onnx
+*.onnx.json
+*.params
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# Logs
+*.log
+/tmp/
+/temp/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+*.key
+*.secret
+.env
+
+# Build
+build/
+dist/
+*.tar.gz
+*.zip
+
+# Audio files (temporary)
+*.wav
+*.mp3
