@@ -24,6 +24,9 @@ SKIP_BAR=false
 SKIP_DEPS=false
 UNATTENDED=false
 
+# Global: Compatible Python path (set in Step 6, used in Step 7)
+PYTHON_BIN=""
+
 # Parse arguments
 for arg in "$@"; do
     case $arg in
@@ -167,10 +170,14 @@ if [ "$SKIP_DEPS" != true ]; then
         pipewire
         wireplumber
         pyenv
+        base-devel
+        openssl
+        zlib
+        xz
+        tk
     )
 
-    echo -e "  ${YELLOW}Installing: ${PACKAGES[*]}${NC}"
-    echo ""
+    echo -e "  ${YELLOW}Installing dependencies...${NC}"
 
     sudo pacman -S --needed --noconfirm "${PACKAGES[@]}" > /dev/null 2>&1 || {
         echo -e "  ${YELLOW}⚠${NC} Some packages may have failed, continuing..."
@@ -232,7 +239,6 @@ backup_file() {
     fi
 }
 
-# Backup existing files
 backup_file "$HOME/.config/quickshell/ii/services/Ai.qml"
 backup_file "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay/VoiceOverlay.qml"
 
@@ -255,7 +261,6 @@ echo ""
 echo -e "${BLUE}[5/10] Installing HyprVoice files...${NC}"
 echo ""
 
-# Create directories
 mkdir -p "$HOME/.config/quickshell/ii/services"
 mkdir -p "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay"
 mkdir -p "$HOME/.config/quickshell/ii/modules/ii/bar"
@@ -263,7 +268,6 @@ mkdir -p "$HOME/.config/hypr/scripts"
 mkdir -p "$HOME/.config/hypr/voice-engine/models"
 mkdir -p "$HOME/.config/hypr/voice-assistant"
 
-# Copy Quickshell files
 cp "$SCRIPT_DIR/config/quickshell/ii/services/Ai.qml" \
     "$HOME/.config/quickshell/ii/services/"
 echo -e "  ${GREEN}✓${NC} Installed Ai.qml"
@@ -272,7 +276,6 @@ cp "$SCRIPT_DIR/config/quickshell/ii/modules/ii/voiceOverlay/VoiceOverlay.qml" \
     "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay/"
 echo -e "  ${GREEN}✓${NC} Installed VoiceOverlay.qml"
 
-# Copy bar (if not skipping)
 if [ "$SKIP_BAR" != true ]; then
     if [ -f "$SCRIPT_DIR/config/quickshell/ii/modules/ii/bar/BarContent.qml" ]; then
         cp "$SCRIPT_DIR/config/quickshell/ii/modules/ii/bar/BarContent.qml" \
@@ -285,16 +288,13 @@ else
     echo -e "  ${YELLOW}⚠${NC} Skipped BarContent.qml (--skip-bar)"
 fi
 
-# Copy scripts
 cp "$SCRIPT_DIR/config/hypr/scripts/"*.sh "$HOME/.config/hypr/scripts/"
 chmod +x "$HOME/.config/hypr/scripts/"*.sh
 echo -e "  ${GREEN}✓${NC} Installed voice scripts"
 
-# Copy voice engine
 cp "$SCRIPT_DIR/config/hypr/voice-engine/listen.py" "$HOME/.config/hypr/voice-engine/"
 echo -e "  ${GREEN}✓${NC} Installed listen.py"
 
-# Copy config
 cp "$SCRIPT_DIR/config/hypr/voice-assistant/music-player.conf" "$HOME/.config/hypr/voice-assistant/"
 echo -e "  ${GREEN}✓${NC} Installed music-player.conf"
 
@@ -314,7 +314,6 @@ cd "$VOICE_ENGINE_DIR"
 
 # Find compatible Python version (3.10, 3.11, or 3.12)
 # onnxruntime doesn't support 3.13+ yet
-PYTHON_BIN=""
 
 # Method 1: Check system Python versions
 for py in python3.12 python3.11 python3.10; do
@@ -352,7 +351,6 @@ if [ -z "$PYTHON_BIN" ]; then
     echo -e "  ${YELLOW}→${NC} Attempting to install Python 3.12 via pyenv..."
     
     if command -v pyenv &> /dev/null; then
-        # Initialize pyenv for this shell
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$(pyenv init --path 2>/dev/null)" || true
@@ -387,22 +385,21 @@ if [ -d "$VENV_DIR" ]; then
     rm -rf "$VENV_DIR"
 fi
 
-# Create fresh venv with compatible Python
+# Create fresh venv
 echo -e "  ${YELLOW}→${NC} Creating virtual environment..."
 "$PYTHON_BIN" -m venv "$VENV_DIR"
 
-# Upgrade pip first (important!)
+# Upgrade pip
 echo -e "  ${YELLOW}→${NC} Upgrading pip..."
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip setuptools wheel
 
-# Install dependencies in order to avoid conflicts
+# Install dependencies in order
 echo -e "  ${YELLOW}→${NC} Installing numpy..."
 "$VENV_DIR/bin/pip" install --quiet "numpy<2.0.0"
 
 echo -e "  ${YELLOW}→${NC} Installing onnxruntime..."
 if ! "$VENV_DIR/bin/pip" install --quiet onnxruntime 2>&1; then
     echo -e "  ${RED}✗${NC} Failed to install onnxruntime"
-    echo -e "    ${YELLOW}This usually means Python version is incompatible${NC}"
     exit 1
 fi
 
@@ -412,32 +409,11 @@ echo -e "  ${YELLOW}→${NC} Installing openwakeword..."
 echo -e "  ${YELLOW}→${NC} Installing pyaudio..."
 "$VENV_DIR/bin/pip" install --quiet pyaudio
 
-# Verify installation
-echo -e "  ${YELLOW}→${NC} Verifying installation..."
+# Verify
 if "$VENV_DIR/bin/python" -c "import openwakeword; import pyaudio; import numpy" 2>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Python environment ready"
-    
-    # Show installed versions (safely handle missing __version__)
-    "$VENV_DIR/bin/python" -c "
-import sys
-import numpy as np
-import pyaudio
-try:
-    import pkg_resources
-    oww_ver = pkg_resources.get_distribution('openwakeword').version
-    onnx_ver = pkg_resources.get_distribution('onnxruntime').version
-except:
-    oww_ver = 'installed'
-    onnx_ver = 'installed'
-print(f'    Python: {sys.version.split()[0]}')
-print(f'    openwakeword: {oww_ver}')
-print(f'    onnxruntime: {onnx_ver}')
-print(f'    numpy: {np.__version__}')
-print(f'    pyaudio: {pyaudio.__version__}')
-" 2>/dev/null || true
 else
     echo -e "  ${RED}✗${NC} Python environment setup failed"
-    echo -e "    ${YELLOW}Check logs above for errors${NC}"
     exit 1
 fi
 
@@ -450,21 +426,41 @@ echo ""
 echo -e "${BLUE}[7/10] Setting up Piper TTS...${NC}"
 echo ""
 
-mkdir -p "$HOME/.local/share/piper/models"
-cd "$HOME/.local/share/piper"
+PIPER_DIR="$HOME/.local/share/piper"
+PIPER_VENV="$PIPER_DIR/venv"
 
-# Create venv if needed (use same Python as voice-engine for consistency)
-if [ ! -d "venv" ]; then
-    echo -e "  ${YELLOW}→${NC} Creating Piper virtual environment..."
-    "$PYTHON_BIN" -m venv venv
+mkdir -p "$PIPER_DIR/models"
+cd "$PIPER_DIR"
+
+# Remove old venv if exists
+if [ -d "$PIPER_VENV" ]; then
+    echo -e "  ${YELLOW}→${NC} Removing old Piper virtual environment..."
+    rm -rf "$PIPER_VENV"
 fi
 
-# Install piper
-echo -e "  ${YELLOW}→${NC} Installing piper-tts..."
-./venv/bin/pip install --quiet --upgrade pip
-./venv/bin/pip install --quiet piper-tts
+# Create venv with same compatible Python
+echo -e "  ${YELLOW}→${NC} Creating Piper virtual environment..."
+"$PYTHON_BIN" -m venv "$PIPER_VENV"
 
-echo -e "  ${GREEN}✓${NC} Piper TTS installed"
+# Upgrade pip
+echo -e "  ${YELLOW}→${NC} Upgrading pip..."
+"$PIPER_VENV/bin/pip" install --quiet --upgrade pip setuptools wheel
+
+# Install dependencies in order
+echo -e "  ${YELLOW}→${NC} Installing numpy..."
+"$PIPER_VENV/bin/pip" install --quiet "numpy<2.0.0"
+
+echo -e "  ${YELLOW}→${NC} Installing onnxruntime..."
+"$PIPER_VENV/bin/pip" install --quiet onnxruntime
+
+echo -e "  ${YELLOW}→${NC} Installing piper-tts..."
+if "$PIPER_VENV/bin/pip" install --quiet piper-tts 2>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} Piper TTS installed"
+else
+    echo -e "  ${YELLOW}→${NC} Retrying with --no-deps..."
+    "$PIPER_VENV/bin/pip" install --quiet --no-deps piper-tts
+    echo -e "  ${GREEN}✓${NC} Piper TTS installed"
+fi
 
 # Download English model
 if [ ! -f "models/en_US-lessac-medium.onnx" ]; then
@@ -499,7 +495,6 @@ echo ""
 echo -e "${BLUE}[8/10] Configuring autostart...${NC}"
 echo ""
 
-# Find Hyprland config
 HYPR_CONF=""
 HYPR_LOCATIONS=(
     "$HOME/.config/hypr/hyprland/execs.conf"
@@ -525,7 +520,7 @@ if [ -n "$HYPR_CONF" ]; then
     fi
 else
     echo -e "  ${YELLOW}⚠${NC} Could not find Hyprland config"
-    echo -e "    ${YELLOW}Add this manually to your Hyprland config:${NC}"
+    echo -e "    ${YELLOW}Add this manually:${NC}"
     echo -e "    ${CYAN}exec-once = setsid -f bash \$HOME/.config/hypr/scripts/start-voice-listener.sh${NC}"
 fi
 
@@ -567,31 +562,22 @@ if [ "$UNATTENDED" != true ]; then
         echo ""
         echo -e "  ${YELLOW}⚠${NC} Skipped. Add your key later with:"
         echo -e "    ${CYAN}secret-tool store --label='illogical-impulse' application illogical-impulse${NC}"
-        echo -e "    Then enter: ${CYAN}{\"apiKeys\": {\"groq\": \"YOUR_KEY\"}}${NC}"
     fi
 else
     echo -e "  ${YELLOW}⚠${NC} Unattended mode - skipping API key setup"
-    echo -e "    Add your key later with:"
-    echo -e "    ${CYAN}secret-tool store --label='illogical-impulse' application illogical-impulse${NC}"
 fi
 
 echo ""
 
 # ─────────────────────────────────────────
-# STEP 10: SYSTEM PROMPT
+# STEP 10: FINAL
 # ─────────────────────────────────────────
 
 echo -e "${BLUE}[10/10] Final setup...${NC}"
 echo ""
 
-echo -e "${CYAN}┌────────────────────────────────────────┐${NC}"
-echo -e "${CYAN}│       System Prompt (Optional)         │${NC}"
-echo -e "${CYAN}└────────────────────────────────────────┘${NC}"
-echo ""
-echo -e "For best voice command understanding, update your AI system prompt."
-echo ""
-echo -e "${GREEN}Find the optimized prompt at:${NC}"
-echo -e "  ${CYAN}$SCRIPT_DIR/docs/SYSTEM_PROMPT.md${NC}"
+echo -e "For best results, update your AI system prompt."
+echo -e "Find it at: ${CYAN}$SCRIPT_DIR/docs/SYSTEM_PROMPT.md${NC}"
 echo ""
 
 # ─────────────────────────────────────────
@@ -605,40 +591,17 @@ echo -e "${GREEN}║          Installation Complete! 🎉                       
 echo -e "${GREEN}║                                                            ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}What was installed:${NC}"
-echo -e "  • Voice assistant core (Ai.qml)"
-echo -e "  • Voice overlay animation"
-if [ "$SKIP_BAR" != true ]; then
-    echo -e "  • Custom bar with notch design"
-fi
-echo -e "  • Wake word listener (listen.py)"
-echo -e "  • Voice scripts (STT, TTS, music)"
-echo -e "  • Piper TTS with English & Hindi voices"
-echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo ""
 echo -e "  1. ${YELLOW}Log out and log back in${NC} (or restart Hyprland)"
 echo ""
 echo -e "  2. Say ${GREEN}\"Alexa\"${NC} to activate HyprVoice"
 echo ""
-echo -e "  3. Try these commands:"
-echo -e "     • ${CYAN}\"Alexa, set volume to 50\"${NC}"
-echo -e "     • ${CYAN}\"Alexa, open Brave\"${NC}"
-echo -e "     • ${CYAN}\"Alexa, play Shape of You\"${NC}"
-echo -e "     • ${CYAN}\"Alexa, take a screenshot\"${NC}"
+echo -e "  3. Try: ${CYAN}\"Alexa, set volume to 50\"${NC}"
 echo ""
-echo -e "${BLUE}Quick Test (run now):${NC}"
-echo ""
+echo -e "${BLUE}Quick Test:${NC}"
 echo -e "  ${CYAN}bash ~/.config/hypr/scripts/start-voice-listener.sh${NC}"
 echo -e "  ${CYAN}tail -f /tmp/voice-listener.log${NC}"
 echo ""
-echo -e "${BLUE}Troubleshooting:${NC}"
-echo ""
-echo -e "  • Check listener: ${CYAN}pgrep -f listen.py${NC}"
-echo -e "  • View logs:      ${CYAN}tail -f /tmp/voice-listener.log${NC}"
-echo -e "  • Restart:        ${CYAN}pkill -f listen.py && bash ~/.config/hypr/scripts/start-voice-listener.sh${NC}"
-echo ""
-echo -e "${BLUE}Documentation:${NC} ${CYAN}https://github.com/Sarthak-Mhaske/HyprVoice${NC}"
-echo ""
-echo -e "${BLUE}Backup Location:${NC} ${CYAN}$BACKUP_DIR${NC}"
+echo -e "${BLUE}Backup:${NC} ${CYAN}$BACKUP_DIR${NC}"
 echo ""
