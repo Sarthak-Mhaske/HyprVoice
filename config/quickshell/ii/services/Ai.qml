@@ -74,7 +74,7 @@ Singleton {
         "{DE}": `${SystemInfo.desktopEnvironment} (${SystemInfo.windowingSystem})` 
     }
 
-    property string currentTool: Config?.options.ai.tool ?? "search"
+    property string currentTool: "functions"
     property var tools: {
         "gemini": {
             "functions": [{"functionDeclarations": [
@@ -198,7 +198,7 @@ Singleton {
                             "type": "object",
                             "properties": {
                                 "number": {
-                                    "type": "number",
+                                    "type": "string",
                                     "description": "Workspace number",
                                 },
                             },
@@ -257,7 +257,7 @@ Singleton {
                             "type": "object",
                             "properties": {
                                 "minutes": {
-                                    "type": "number",
+                                    "type": "string",
                                     "minimum": 1,
                                     "maximum": 1440,
                                     "description": "How many minutes from now (1 to 1440)",
@@ -302,7 +302,7 @@ Singleton {
                                     "description": "Urgency level",
                                 },
                                 "timeout_ms": {
-                                    "type": "number",
+                                    "type": "string",
                                     "description": "Timeout in milliseconds",
                                 },
                             },
@@ -371,7 +371,7 @@ Singleton {
                             "type": "object",
                             "properties": {
                                 "level": {
-                                    "type": "number",
+                                    "type": "string",
                                     "minimum": 0,
                                     "maximum": 100,
                                     "description": "Volume level from 0 to 100",
@@ -390,7 +390,7 @@ Singleton {
                             "type": "object",
                             "properties": {
                                 "level": {
-                                    "type": "number",
+                                    "type": "string",
                                     "minimum": 0,
                                     "maximum": 100,
                                     "description": "Brightness level from 0 to 100",
@@ -966,6 +966,8 @@ Singleton {
                 filteredMessageArray = filteredMessageArray.slice(filteredMessageArray.length - MAX_CONTEXT_MSG);
             }
             const data = root.currentApiStrategy.buildRequestData(model, filteredMessageArray, root.systemPrompt, root.temperature, root.tools[model.api_format][root.currentTool], root.pendingFilePath);
+            // Force the model to use tools
+            data.tool_choice = "auto";
 
             let requestHeaders = {
                 "Content-Type": "application/json",
@@ -1019,10 +1021,16 @@ Singleton {
                 if (data.length === 0) return;
                 if (requester.message.thinking) requester.message.thinking = false;
 
+                console.log("[AI] Raw data chunk:", data);
+
                 try {
                     const result = requester.currentStrategy.parseResponseLine(data, requester.message);
 
+                    console.log("[AI] Parse result:", JSON.stringify(result));  // ADD THIS
+                    console.log("[AI] Function call:", result?.functionCall);
+
                     if (result.functionCall) {
+                        console.log("[AI] Executing function:", result.functionCall.name); 
                         requester.message.functionCall = result.functionCall;
                         root.handleFunctionCall(result.functionCall.name, result.functionCall.args, requester.message);
                     }
