@@ -272,6 +272,13 @@ cp "$SCRIPT_DIR/config/quickshell/ii/services/Ai.qml" \
     "$HOME/.config/quickshell/ii/services/"
 echo -e "  ${GREEN}✓${NC} Installed Ai.qml"
 
+if [ -d "$SCRIPT_DIR/config/quickshell/ii/services/ai" ]; then
+    echo "  → Installing AI API strategies..."
+    mkdir -p "$HOME/.config/quickshell/ii/services/ai"
+    cp -r "$SCRIPT_DIR/config/quickshell/ii/services/ai/"* \
+        "$HOME/.config/quickshell/ii/services/ai/"
+fi
+
 cp "$SCRIPT_DIR/config/quickshell/ii/modules/ii/voiceOverlay/VoiceOverlay.qml" \
     "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay/"
 echo -e "  ${GREEN}✓${NC} Installed VoiceOverlay.qml"
