@@ -281,6 +281,24 @@ fi
 
 cp "$SCRIPT_DIR/config/quickshell/ii/modules/ii/voiceOverlay/VoiceOverlay.qml" \
     "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay/"
+
+# Register VoiceOverlay in IllogicalImpulseFamily
+FAMILY_FILE="$HOME/.config/quickshell/ii/panelFamilies/IllogicalImpulseFamily.qml"
+if [ -f "$FAMILY_FILE" ]; then
+    if ! grep -q "import qs.modules.ii.voiceOverlay" "$FAMILY_FILE"; then
+        echo "  → Registering VoiceOverlay..."
+        LAST_IMPORT_LINE=$(awk '/^import qs\.modules\.ii/ {last=NR} END {print last}' "$FAMILY_FILE")
+        sed -i "${LAST_IMPORT_LINE}a import qs.modules.ii.voiceOverlay" "$FAMILY_FILE"
+        sed -i '$i \    PanelLoader { component: VoiceOverlay {} }' "$FAMILY_FILE"
+    fi
+fi
+
+# Create qmldir for VoiceOverlay module
+cat > "$HOME/.config/quickshell/ii/modules/ii/voiceOverlay/qmldir" << 'EOF'
+module qs.modules.ii.voiceOverlay
+VoiceOverlay 1.0 VoiceOverlay.qml
+EOF
+
 echo -e "  ${GREEN}✓${NC} Installed VoiceOverlay.qml"
 
 if [ "$SKIP_BAR" != true ]; then
