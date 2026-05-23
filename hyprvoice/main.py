@@ -4,7 +4,7 @@ from hyprvoice.core.context import detect_environment, format_context_for_llm
 from hyprvoice.core.doctor import collect_doctor_report, format_doctor_report
 from hyprvoice.core.config import load_config
 from hyprvoice.core.transcription_flow import transcribe_existing_audio
-from hyprvoice.core.agent import chat_completion, build_system_prompt
+from hyprvoice.core.agent import chat_completion_with_fallback, build_system_prompt
 
 def main():
     if "doctor" in sys.argv or "--doctor" in sys.argv:
@@ -27,7 +27,7 @@ def main():
             cfg = load_config()
             env = detect_environment()
             sys_prompt = build_system_prompt(env)
-            res = chat_completion([{"role": "user", "content": prompt}], cfg, system_prompt=sys_prompt)
+            res = chat_completion_with_fallback([{"role": "user", "content": prompt}], cfg, system_prompt=sys_prompt)
             if res["ok"]:
                 print(res["content"])
             else:
