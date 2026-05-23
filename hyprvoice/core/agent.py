@@ -29,22 +29,34 @@ def build_system_prompt(env: dict[str, Any] | None = None, extra_instructions: s
 def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Clean and normalize chat messages for the OpenAI-compatible endpoint."""
     clean = []
-    valid_roles = {"system", "user", "assistant"}
+    valid_roles = {"system", "user", "assistant", "tool"}
     
     for m in messages:
         if not isinstance(m, dict):
             continue
             
         role = m.get("role", "").strip().lower()
-        content = m.get("content", "")
-        
-        if not isinstance(content, str):
-            content = str(content)
+        if role not in valid_roles:
+            continue
             
+        content = m.get("content", "")
+        if content is None:
+            content = ""
+        elif not isinstance(content, str):
+            content = str(content)
         content = content.strip()
         
-        if role in valid_roles and content:
-            clean.append({"role": role, "content": content})
+        msg = {"role": role, "content": content}
+        
+        if "tool_calls" in m:
+            msg["tool_calls"] = m["tool_calls"]
+        if "tool_call_id" in m:
+            msg["tool_call_id"] = m["tool_call_id"]
+        if "name" in m:
+            msg["name"] = m["name"]
+            
+        if content or msg.get("tool_calls") or role == "tool":
+            clean.append(msg)
             
     return clean
 
@@ -482,4 +494,91 @@ def run_single_tool_turn(messages: list[dict[str, Any]], config: dict[str, Any],
         "tool_result": tool_result,
         "error": tool_result["error"],
         "raw": chat_res["raw"]
+    }
+
+def build_tool_result_payload(tool_name: str, tool_args: dict[str, Any], tool_result: dict[str, Any]) -> str:
+    import json
+    
+    payload = {
+        "tool_name": tool_name,
+        "tool_args": tool_args,
+        "ok": tool_result.get("ok", False),
+        "message": tool_result.get("message", ""),
+        "error": tool_result.get("error"),
+        "data": tool_result.get("data")
+    }
+    
+    try:
+        return json.dumps(payload, separators=(',', ':'))
+    except TypeError:
+        payload["data"] = str(payload["data"])
+        return json.dumps(payload, separators=(',', ':'))
+
+def run_single_tool_turn_with_followup(messages: list[dict[str, Any]], config: dict[str, Any], system_prompt: str | None = None) -> dict[str, Any]:
+    initial_res = run_single_tool_turn(messages, config, system_prompt)
+    
+    if not initial_res["ok"] and initial_res.get("mode") != "tool_call":
+        return initial_res
+        
+    if initial_res.get("mode") == "assistant_reply":
+        return {
+            "ok": True,
+            "mode": "assistant_reply",
+            "assistant_content": initial_res["assistant_content"],
+            "tool_name": None,
+            "tool_args": None,
+            "tool_result": None,
+            "initial_response": initial_res["raw"],
+            "final_response": None,
+            "error": None,
+            "raw": {"initial": initial_res["raw"], "final": None}
+        }
+        
+    tool_calls = initial_res["raw"].get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
+    if not tool_calls:
+        return initial_res
+        
+    tool_call_id = tool_calls[0].get("id", "call_0")
+    tool_name = initial_res["tool_name"]
+    tool_args = initial_res["tool_args"]
+    tool_result = initial_res["tool_result"]
+    
+    if tool_args is None:
+        return initial_res
+        
+    normalized = normalize_messages(messages)
+    
+    assistant_msg = {
+        "role": "assistant",
+        "content": initial_res["assistant_content"] or "",
+        "tool_calls": tool_calls
+    }
+    
+    tool_msg = {
+        "role": "tool",
+        "tool_call_id": tool_call_id,
+        "name": tool_name,
+        "content": build_tool_result_payload(tool_name, tool_args, tool_result)
+    }
+    
+    followup_messages = list(normalized)
+    followup_messages.append(assistant_msg)
+    followup_messages.append(tool_msg)
+    
+    final_res = chat_completion_with_fallback(followup_messages, config, system_prompt=system_prompt)
+    
+    return {
+        "ok": final_res["ok"],
+        "mode": "tool_followup",
+        "assistant_content": final_res["content"],
+        "tool_name": tool_name,
+        "tool_args": tool_args,
+        "tool_result": tool_result,
+        "initial_response": initial_res["raw"],
+        "final_response": final_res["raw"],
+        "error": final_res["error"],
+        "raw": {
+            "initial": initial_res["raw"],
+            "final": final_res["raw"]
+        }
     }
