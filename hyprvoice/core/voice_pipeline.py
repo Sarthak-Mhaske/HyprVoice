@@ -35,9 +35,12 @@ def _build_unified_result(ok: bool, user_text: str, assistant_text: str, trans_r
         "error": error
     }
 
-def run_voice_pipeline_from_audio(audio_path: str, config: dict[str, Any], speak_reply: bool = True) -> dict[str, Any]:
+def run_voice_pipeline_from_audio(audio_path: str, config: dict[str, Any], speak_reply: bool = True, state_store: Any | None = None) -> dict[str, Any]:
     """Execute the STT -> LLM/Tool -> TTS pipeline from an existing audio file."""
     
+    if state_store:
+        state_store.set_state("transcribing", "Transcribing audio file...")
+        
     # 1. Transcribe
     trans_res = transcribe_existing_audio(audio_path, config, translate_if_needed=True)
     if not trans_res["ok"]:
@@ -49,10 +52,17 @@ def run_voice_pipeline_from_audio(audio_path: str, config: dict[str, Any], speak
         return _build_unified_result(False, "", "", trans_res, None, None, "No text transcribed")
         
     # 3. Agent Execution
+    if state_store:
+        state_store.set_state("thinking", "Generating response...")
+        
     env = detect_environment()
     system_prompt = build_system_prompt(env)
     
     agent_res = run_single_tool_turn_with_followup([{"role": "user", "content": user_text}], config, system_prompt=system_prompt)
+    
+    if state_store and agent_res.get("mode") in ("tool_call", "tool_followup"):
+        state_store.set_state("executing", "Running tool...")
+        
     if not agent_res["ok"]:
         return _build_unified_result(False, user_text, agent_res.get("assistant_content", ""), trans_res, agent_res, None, agent_res.get("error", "Agent execution failed"))
         
@@ -61,14 +71,18 @@ def run_voice_pipeline_from_audio(audio_path: str, config: dict[str, Any], speak
     # 4. TTS Execution
     tts_res = None
     if speak_reply and assistant_text:
-        # Default to english for now if translation occurred or just implicitly english
+        if state_store:
+            state_store.set_state("speaking", "Synthesizing speech...")
         tts_res = speak_text(assistant_text, config, lang="english")
         
     return _build_unified_result(True, user_text, assistant_text, trans_res, agent_res, tts_res, None)
 
-def run_voice_pipeline(config: dict[str, Any], duration: float | None = None, speak_reply: bool = True) -> dict[str, Any]:
+def run_voice_pipeline(config: dict[str, Any], duration: float | None = None, speak_reply: bool = True, state_store: Any | None = None) -> dict[str, Any]:
     """Execute the Record -> STT -> LLM/Tool -> TTS pipeline."""
     
+    if state_store:
+        state_store.set_state("transcribing", "Listening and transcribing...")
+        
     # 1. Record and Transcribe
     trans_res = record_and_transcribe(config, duration=duration)
     if not trans_res["ok"]:
@@ -80,10 +94,17 @@ def run_voice_pipeline(config: dict[str, Any], duration: float | None = None, sp
         return _build_unified_result(False, "", "", trans_res, None, None, "No text transcribed")
         
     # 3. Agent Execution
+    if state_store:
+        state_store.set_state("thinking", "Generating response...")
+        
     env = detect_environment()
     system_prompt = build_system_prompt(env)
     
     agent_res = run_single_tool_turn_with_followup([{"role": "user", "content": user_text}], config, system_prompt=system_prompt)
+    
+    if state_store and agent_res.get("mode") in ("tool_call", "tool_followup"):
+        state_store.set_state("executing", "Running tool...")
+        
     if not agent_res["ok"]:
         return _build_unified_result(False, user_text, agent_res.get("assistant_content", ""), trans_res, agent_res, None, agent_res.get("error", "Agent execution failed"))
         
@@ -92,6 +113,8 @@ def run_voice_pipeline(config: dict[str, Any], duration: float | None = None, sp
     # 4. TTS Execution
     tts_res = None
     if speak_reply and assistant_text:
+        if state_store:
+            state_store.set_state("speaking", "Synthesizing speech...")
         tts_res = speak_text(assistant_text, config, lang="english")
         
     return _build_unified_result(True, user_text, assistant_text, trans_res, agent_res, tts_res, None)

@@ -96,6 +96,14 @@ def main():
         from hyprvoice.core.assistant_loop import run_assistant_loop
         cfg = load_config()
         run_assistant_loop(cfg)
+    elif "state-demo" in sys.argv:
+        from hyprvoice.core.state import AssistantStateStore
+        import time
+        s = AssistantStateStore()
+        s.subscribe(lambda snap: print(f"[STATE CHANGED] {snap['state']}: {snap['message']}"))
+        for st in ["listening", "transcribing", "thinking", "executing", "speaking", "idle"]:
+            s.set_state(st, f"Entering {st}")
+            time.sleep(0.5)
     else:
         print("HyprVoice v2 launcher ready")
 

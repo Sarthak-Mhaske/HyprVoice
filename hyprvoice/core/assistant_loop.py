@@ -5,8 +5,10 @@ from hyprvoice.core.voice_pipeline import run_voice_pipeline
 from hyprvoice.core.wake import WakeWordListener
 
 class HyprVoiceAssistant:
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any], state_store: Any | None = None):
+        from hyprvoice.core.state import AssistantStateStore
         self.config = config
+        self.state_store = state_store or AssistantStateStore()
         self.listener: WakeWordListener | None = None
         self.is_running = False
         self.is_busy = False
@@ -18,17 +20,22 @@ class HyprVoiceAssistant:
             return None
             
         print("Wake word detected. Running voice pipeline...")
+        self.state_store.set_state("wake_detected", "Wake word heard")
         self.is_busy = True
         try:
-            res = run_voice_pipeline(self.config, speak_reply=True)
+            self.state_store.set_state("listening", "Listening to command...")
+            res = run_voice_pipeline(self.config, speak_reply=True, state_store=self.state_store)
             self.last_result = res
             if not res["ok"]:
                 print(f"Pipeline error: {res.get('error')}")
+                self.state_store.set_state("error", res.get("error", "Unknown error"))
             else:
                 print("Voice pipeline completed successfully.")
+                self.state_store.set_state("idle", "Completed")
             return res
         except Exception as e:
             print(f"Pipeline exception: {e}")
+            self.state_store.set_state("error", str(e))
             return None
         finally:
             self.is_busy = False
