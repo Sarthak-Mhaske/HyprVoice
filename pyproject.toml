@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hyprvoice"
+version = "0.1.0"
+description = "Universal standalone Python rewrite of HyprVoice (V2 Scaffold)"
+requires-python = ">=3.11"
+authors = [
+    { name = "Sarthak-Mhaske" }
+]
+
+[project.scripts]
+hyprvoice = "hyprvoice.main:main"
+
+[tool.setuptools.packages.find]
+include = ["hyprvoice*"]
