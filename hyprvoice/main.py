@@ -34,6 +34,24 @@ def main():
                 print(f"Error: {res['error']}")
         except IndexError:
             print("Usage: hyprvoice ask \"your prompt here\"")
+    elif "tool" in sys.argv:
+        import json
+        from hyprvoice.core.tool_executor import execute_tool
+        try:
+            idx = sys.argv.index("tool")
+            tool_name = sys.argv[idx + 1]
+            tool_args_str = sys.argv[idx + 2]
+            
+            try:
+                args = json.loads(tool_args_str)
+            except json.JSONDecodeError:
+                print("Error: Tool arguments must be valid JSON")
+                sys.exit(1)
+                
+            res = execute_tool(tool_name, args)
+            pprint.pp(res)
+        except IndexError:
+            print("Usage: hyprvoice tool <name> '<json_args>'")
     else:
         print("HyprVoice v2 launcher ready")
 
