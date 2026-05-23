@@ -1,1 +1,1 @@
-"""HyprVoice UI Overlay Module"""
+"""HyprVoice UI module."""

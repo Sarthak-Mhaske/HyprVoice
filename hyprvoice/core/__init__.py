@@ -1,1 +1,1 @@
-"""HyprVoice Core Backend Module"""
+"""HyprVoice core module."""

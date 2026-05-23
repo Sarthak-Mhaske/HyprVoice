@@ -1,1 +1,1 @@
-"""HyprVoice V2 Python Package Skeleton"""
+"""HyprVoice root package."""
