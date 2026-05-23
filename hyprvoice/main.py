@@ -92,6 +92,10 @@ def main():
             pprint.pp(res)
         except IndexError:
             print("Usage: hyprvoice voice-file <path-to-wav>")
+    elif "listen" in sys.argv or "run-assistant" in sys.argv:
+        from hyprvoice.core.assistant_loop import run_assistant_loop
+        cfg = load_config()
+        run_assistant_loop(cfg)
     else:
         print("HyprVoice v2 launcher ready")
 

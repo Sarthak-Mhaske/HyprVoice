@@ -1,0 +1,63 @@
+from __future__ import annotations
+from typing import Any
+
+from hyprvoice.core.voice_pipeline import run_voice_pipeline
+from hyprvoice.core.wake import WakeWordListener
+
+class HyprVoiceAssistant:
+    def __init__(self, config: dict[str, Any]):
+        self.config = config
+        self.listener: WakeWordListener | None = None
+        self.is_running = False
+        self.is_busy = False
+        self.last_result: dict[str, Any] | None = None
+
+    def handle_wake_event(self) -> dict[str, Any] | None:
+        """Callback triggered when the wake word is detected."""
+        if self.is_busy:
+            return None
+            
+        print("Wake word detected. Running voice pipeline...")
+        self.is_busy = True
+        try:
+            res = run_voice_pipeline(self.config, speak_reply=True)
+            self.last_result = res
+            if not res["ok"]:
+                print(f"Pipeline error: {res.get('error')}")
+            else:
+                print("Voice pipeline completed successfully.")
+            return res
+        except Exception as e:
+            print(f"Pipeline exception: {e}")
+            return None
+        finally:
+            self.is_busy = False
+
+    def run_forever(self) -> None:
+        """Start listening for the wake word indefinitely."""
+        print("Starting HyprVoice background loop...")
+        try:
+            self.listener = WakeWordListener(self.config)
+            self.is_running = True
+            print("Listening for wake word...")
+            self.listener.listen_forever(on_detect=self.handle_wake_event)
+        except Exception as e:
+            print(f"Failed to start wake listener: {e}")
+        finally:
+            self.is_running = False
+
+    def stop(self) -> None:
+        """Stop the background loop and release resources."""
+        self.is_running = False
+        if self.listener:
+            self.listener.stop()
+
+def run_assistant_loop(config: dict[str, Any]) -> None:
+    assistant = HyprVoiceAssistant(config)
+    try:
+        assistant.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("\nShutting down HyprVoice background loop...")
+        assistant.stop()
