@@ -339,3 +339,147 @@ def chat_with_session(session: Any, user_text: str, config: dict[str, Any]) -> d
         session.add_assistant_message(res["content"])
         
     return res
+
+def chat_completion_with_tools(messages: list[dict[str, Any]], config: dict[str, Any], system_prompt: str | None = None) -> dict[str, Any]:
+    from hyprvoice.core.tools import build_openai_tool_schema
+    
+    llm_cfg = get_llm_config(config)
+    model = llm_cfg["model"]
+    base_url = llm_cfg["base_url"]
+    
+    key = pick_groq_api_key(config)
+    if not key:
+        return {
+            "ok": False,
+            "model": model,
+            "content": "",
+            "tool_calls": [],
+            "error": "No Groq API key configured.",
+            "status_code": 401,
+            "raw": None
+        }
+
+    if system_prompt is None:
+        system_prompt = build_system_prompt()
+        
+    normalized = normalize_messages(messages)
+    payload_messages = []
+    if system_prompt.strip():
+        payload_messages.append({"role": "system", "content": system_prompt.strip()})
+    payload_messages.extend(normalized)
+    
+    tools_schema = build_openai_tool_schema()
+    
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": model,
+        "messages": payload_messages,
+        "temperature": llm_cfg["temperature"],
+        "max_tokens": llm_cfg["max_tokens"],
+        "stream": False,
+        "tools": tools_schema,
+        "tool_choice": "auto"
+    }
+    
+    try:
+        res = requests.post(base_url, headers=headers, json=payload, timeout=30.0)
+        raw = res.json()
+        
+        if res.status_code == 200 and "choices" in raw and raw["choices"]:
+            choice = raw["choices"][0].get("message", {})
+            content = choice.get("content", "")
+            if content is None:
+                content = ""
+            content = content.strip()
+            
+            tool_calls = choice.get("tool_calls", [])
+            
+            return {
+                "ok": True,
+                "model": raw.get("model", model),
+                "content": content,
+                "tool_calls": tool_calls,
+                "error": None,
+                "status_code": 200,
+                "raw": raw
+            }
+        else:
+            err_msg = raw.get("error", {}).get("message", "Unknown API error")
+            return {
+                "ok": False,
+                "model": model,
+                "content": "",
+                "tool_calls": [],
+                "error": f"Groq API Error {res.status_code}: {err_msg}",
+                "status_code": res.status_code,
+                "raw": raw
+            }
+    except Exception as e:
+        return {
+            "ok": False,
+            "model": model,
+            "content": "",
+            "tool_calls": [],
+            "error": f"Request failed: {str(e)}",
+            "status_code": 500,
+            "raw": None
+        }
+
+def run_single_tool_turn(messages: list[dict[str, Any]], config: dict[str, Any], system_prompt: str | None = None) -> dict[str, Any]:
+    from hyprvoice.core.tool_executor import execute_tool
+    import json
+    
+    chat_res = chat_completion_with_tools(messages, config, system_prompt)
+    if not chat_res["ok"]:
+        return chat_res
+        
+    tool_calls = chat_res.get("tool_calls", [])
+    content = chat_res.get("content", "")
+    
+    if not tool_calls:
+        return {
+            "ok": True,
+            "mode": "assistant_reply",
+            "assistant_content": content,
+            "tool_name": None,
+            "tool_args": None,
+            "tool_result": None,
+            "error": None,
+            "raw": chat_res["raw"]
+        }
+        
+    first_call = tool_calls[0]
+    func_info = first_call.get("function", {})
+    name = func_info.get("name", "")
+    args_str = func_info.get("arguments", "{}")
+    
+    try:
+        args = json.loads(args_str)
+    except json.JSONDecodeError as e:
+        return {
+            "ok": False,
+            "mode": "tool_call",
+            "assistant_content": content,
+            "tool_name": name,
+            "tool_args": None,
+            "tool_result": None,
+            "error": f"Failed to parse tool arguments: {str(e)}",
+            "raw": chat_res["raw"]
+        }
+        
+    tool_result = execute_tool(name, args, config=config)
+    
+    return {
+        "ok": tool_result["ok"],
+        "mode": "tool_call",
+        "assistant_content": content,
+        "tool_name": name,
+        "tool_args": args,
+        "tool_result": tool_result,
+        "error": tool_result["error"],
+        "raw": chat_res["raw"]
+    }

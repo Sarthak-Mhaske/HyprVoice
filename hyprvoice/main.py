@@ -52,6 +52,18 @@ def main():
             pprint.pp(res)
         except IndexError:
             print("Usage: hyprvoice tool <name> '<json_args>'")
+    elif "ask-tools" in sys.argv:
+        try:
+            idx = sys.argv.index("ask-tools")
+            prompt = sys.argv[idx + 1]
+            cfg = load_config()
+            env = detect_environment()
+            sys_prompt = build_system_prompt(env)
+            from hyprvoice.core.agent import run_single_tool_turn
+            res = run_single_tool_turn([{"role": "user", "content": prompt}], cfg, system_prompt=sys_prompt)
+            pprint.pp(res)
+        except IndexError:
+            print("Usage: hyprvoice ask-tools \"your prompt here\"")
     else:
         print("HyprVoice v2 launcher ready")
 
