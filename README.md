@@ -22,6 +22,12 @@ speech recognition. Built for Arch Linux, Hyprland, and Quickshell.
 
 ---
 
+## Current Status
+
+> **⚠️ Legacy Implementation:** The existing codebase in this repository is the original, stable Quickshell-based implementation built for Arch Linux and Hyprland. It is working reliably, but is now considered the **legacy version**. A universal, standalone Python rewrite is planned separately. For more details, see [docs/LEGACY.md](docs/LEGACY.md).
+
+---
+
 ## Overview
 
 HyprVoice brings voice control to the Linux desktop. Say "Alexa" to wake it up, speak your command, and watch it execute—whether that's playing music, taking screenshots, adjusting volume, or controlling your windows.
