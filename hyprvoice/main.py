@@ -76,6 +76,22 @@ def main():
             pprint.pp(res)
         except IndexError:
             print("Usage: hyprvoice ask-tools-final \"your prompt here\"")
+    elif "voice-once" in sys.argv:
+        from hyprvoice.core.voice_pipeline import run_voice_pipeline
+        speak = "--no-speak" not in sys.argv
+        cfg = load_config()
+        res = run_voice_pipeline(cfg, speak_reply=speak)
+        pprint.pp(res)
+    elif "voice-file" in sys.argv:
+        from hyprvoice.core.voice_pipeline import run_voice_pipeline_from_audio
+        try:
+            idx = sys.argv.index("voice-file")
+            audio_path = sys.argv[idx + 1]
+            cfg = load_config()
+            res = run_voice_pipeline_from_audio(audio_path, cfg, speak_reply=True)
+            pprint.pp(res)
+        except IndexError:
+            print("Usage: hyprvoice voice-file <path-to-wav>")
     else:
         print("HyprVoice v2 launcher ready")
 
