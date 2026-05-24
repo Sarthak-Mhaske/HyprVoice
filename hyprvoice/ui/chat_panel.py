@@ -55,9 +55,32 @@ def format_chat_panel_placeholder(snapshot: dict[str, Any]) -> str:
         
     return "Processing request..."
 
+def format_message_row(msg: dict[str, Any]) -> dict[str, Any] | None:
+    role = msg.get("role", "").strip().lower()
+    content = msg.get("content", "").strip()
+    
+    if role not in ("user", "assistant") or not content:
+        return None
+        
+    return {
+        "role": role,
+        "content": content,
+        "align": "end" if role == "user" else "start",
+        "css_class": f"message-{role}"
+    }
+
+def session_messages_to_rows(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for m in messages:
+        row = format_message_row(m)
+        if row:
+            rows.append(row)
+    return rows
+
 class ChatPanelWindow:
-    def __init__(self, state_store: AssistantStateStore):
+    def __init__(self, state_store: AssistantStateStore, session: Any | None = None):
         self.state_store = state_store
+        self.session = session
         
         import gi
         gi.require_version("Gtk", "4.0")
@@ -121,6 +144,20 @@ class ChatPanelWindow:
             border-radius: 8px;
             margin-left: 8px;
         }
+        .message-user {
+            background-color: #2d4a7a;
+            color: #e0e0e0;
+            border-radius: 16px 16px 4px 16px;
+            padding: 10px 14px;
+            margin: 4px 12px 4px 60px;
+        }
+        .message-assistant {
+            background-color: #2a2a35;
+            color: #e0e0e0;
+            border-radius: 16px 16px 16px 4px;
+            padding: 10px 14px;
+            margin: 4px 60px 4px 12px;
+        }
         
         /* Status styling */
         .status-listening { color: #82aaff; }
@@ -158,25 +195,27 @@ class ChatPanelWindow:
         header_box.append(self.status_label)
         
         # Scrollable Chat Area
-        scroll = self.Gtk.ScrolledWindow()
-        scroll.set_hexpand(True)
-        scroll.set_vexpand(True)
-        scroll.add_css_class("chat-area")
+        self.scroll = self.Gtk.ScrolledWindow()
+        self.scroll.set_hexpand(True)
+        self.scroll.set_vexpand(True)
+        self.scroll.add_css_class("chat-area")
         
-        # Inner box for chat (just placeholder for now)
+        # Inner box for chat messages
         self.chat_inner_box = self.Gtk.Box(orientation=self.Gtk.Orientation.VERTICAL)
-        self.chat_inner_box.set_halign(self.Gtk.Align.CENTER)
-        self.chat_inner_box.set_valign(self.Gtk.Align.CENTER)
+        self.chat_inner_box.set_valign(self.Gtk.Align.END)
         
         self.placeholder_label = self.Gtk.Label()
         self.placeholder_label.add_css_class("placeholder-text")
         self.placeholder_label.set_wrap(True)
         self.placeholder_label.set_max_width_chars(30)
         self.placeholder_label.set_justify(self.Gtk.Justification.CENTER)
+        self.placeholder_label.set_halign(self.Gtk.Align.CENTER)
+        self.placeholder_label.set_valign(self.Gtk.Align.CENTER)
+        self.placeholder_label.set_vexpand(True)
         
         self.chat_inner_box.append(self.placeholder_label)
         
-        scroll.set_child(self.chat_inner_box)
+        self.scroll.set_child(self.chat_inner_box)
         
         # Input Row
         input_row = self.Gtk.Box(orientation=self.Gtk.Orientation.HORIZONTAL)
@@ -195,13 +234,14 @@ class ChatPanelWindow:
         
         # Assemble
         main_box.append(header_box)
-        main_box.append(scroll)
+        main_box.append(self.scroll)
         main_box.append(input_row)
         
         self.window.set_child(main_box)
         
         snap = self.state_store.snapshot()
         self.update_from_snapshot(snap)
+        self.refresh_messages()
         
         self.window.present()
 
@@ -214,13 +254,49 @@ class ChatPanelWindow:
             return
             
         self.status_label.set_text(format_chat_panel_status(snapshot))
-        self.placeholder_label.set_text(format_chat_panel_placeholder(snapshot))
+        
+        has_messages = self.session and self.session.message_count() > 0
+        if not has_messages:
+            self.placeholder_label.set_text(format_chat_panel_placeholder(snapshot))
         
         self.status_label.remove_css_class(f"status-{self.current_state_class}")
         
         state = snapshot.get("state", "idle")
         self.current_state_class = state
         self.status_label.add_css_class(f"status-{state}")
+
+    def refresh_messages(self) -> None:
+        if not self.chat_inner_box or not self.placeholder_label:
+            return
+            
+        if not self.session or self.session.message_count() == 0:
+            self.placeholder_label.set_visible(True)
+            return
+            
+        self.placeholder_label.set_visible(False)
+        
+        # Remove old message widgets (keep placeholder at index 0)
+        child = self.chat_inner_box.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            if child != self.placeholder_label:
+                self.chat_inner_box.remove(child)
+            child = next_child
+        
+        rows = session_messages_to_rows(self.session.get_messages())
+        for row in rows:
+            lbl = self.Gtk.Label(label=row["content"])
+            lbl.set_wrap(True)
+            lbl.set_max_width_chars(35)
+            lbl.add_css_class(row["css_class"])
+            lbl.set_halign(
+                self.Gtk.Align.END if row["align"] == "end" else self.Gtk.Align.START
+            )
+            self.chat_inner_box.append(lbl)
+        
+        # Scroll to bottom
+        adj = self.scroll.get_vadjustment()
+        self.GLib.idle_add(lambda: adj.set_value(adj.get_upper()))
 
     def run(self) -> None:
         self.app.run(None)
@@ -234,7 +310,14 @@ def launch_chat_panel_demo(state_store: AssistantStateStore | None = None) -> No
         print("GTK4 dependencies missing, cannot launch chat panel.")
         return
         
+    from hyprvoice.core.session import ConversationSession
+    
     store = state_store or AssistantStateStore()
+    session = ConversationSession()
+    session.add_user_message("Open YouTube for me")
+    session.add_assistant_message("Opening YouTube in your browser.")
+    session.add_user_message("What time is it?")
+    session.add_assistant_message("It is currently 10:08 AM IST.")
     
     import gi
     gi.require_version("Gtk", "4.0")
@@ -244,8 +327,6 @@ def launch_chat_panel_demo(state_store: AssistantStateStore | None = None) -> No
         ("listening", "Listening..."),
         ("transcribing", "Transcribing..."),
         ("thinking", "Thinking..."),
-        ("executing", "Running tool..."),
-        ("speaking", "Speaking..."),
         ("idle", "")
     ]
     
@@ -258,5 +339,5 @@ def launch_chat_panel_demo(state_store: AssistantStateStore | None = None) -> No
         
     GLib.timeout_add(2000, advance_demo)
     
-    win = ChatPanelWindow(store)
+    win = ChatPanelWindow(store, session=session)
     win.run()

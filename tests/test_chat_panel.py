@@ -4,7 +4,9 @@ from hyprvoice.ui.chat_panel import (
     chat_panel_available,
     format_chat_panel_title,
     format_chat_panel_status,
-    format_chat_panel_placeholder
+    format_chat_panel_placeholder,
+    format_message_row,
+    session_messages_to_rows
 )
 
 def test_check_chat_panel_dependencies():
@@ -28,3 +30,41 @@ def test_format_chat_panel_placeholder():
     assert "thinking" in format_chat_panel_placeholder({"state": "thinking"})
     assert "error" in format_chat_panel_placeholder({"state": "error"}).lower()
     assert "Processing" in format_chat_panel_placeholder({"state": "executing"})
+
+def test_format_message_row_user():
+    row = format_message_row({"role": "user", "content": " hello "})
+    assert row is not None
+    assert row["role"] == "user"
+    assert row["content"] == "hello"
+    assert row["align"] == "end"
+    assert row["css_class"] == "message-user"
+
+def test_format_message_row_assistant():
+    row = format_message_row({"role": "assistant", "content": "world"})
+    assert row is not None
+    assert row["role"] == "assistant"
+    assert row["align"] == "start"
+    assert row["css_class"] == "message-assistant"
+
+def test_format_message_row_invalid_role():
+    assert format_message_row({"role": "system", "content": "test"}) is None
+    assert format_message_row({"role": "", "content": "test"}) is None
+
+def test_format_message_row_empty_content():
+    assert format_message_row({"role": "user", "content": ""}) is None
+    assert format_message_row({"role": "user", "content": "  "}) is None
+
+def test_session_messages_to_rows():
+    msgs = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+        {"role": "system", "content": "ignored"},
+        {"role": "user", "content": ""},
+    ]
+    rows = session_messages_to_rows(msgs)
+    assert len(rows) == 2
+    assert rows[0]["role"] == "user"
+    assert rows[1]["role"] == "assistant"
+
+def test_session_messages_to_rows_empty():
+    assert session_messages_to_rows([]) == []
