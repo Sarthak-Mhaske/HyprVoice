@@ -21,46 +21,26 @@ def overlay_available() -> bool:
     return deps["gi"] and deps["gtk4"]
 
 def should_overlay_be_visible(snapshot: dict[str, Any]) -> bool:
-    return snapshot.get("state", "idle") != "idle"
+    from hyprvoice.ui.status_text import is_active_state
+    return is_active_state(snapshot)
 
 def get_overlay_state_class(snapshot: dict[str, Any]) -> str:
-    state = snapshot.get("state", "idle")
-    return f"state-{state}"
+    from hyprvoice.ui.status_text import get_shared_state_class
+    return get_shared_state_class(snapshot)
 
 def format_overlay_title(snapshot: dict[str, Any]) -> str:
-    state = snapshot.get("state", "idle")
-    titles = {
-        "wake_detected": "HyprVoice",
-        "listening": "Listening",
-        "transcribing": "Transcribing",
-        "thinking": "Thinking",
-        "executing": "Executing",
-        "speaking": "Speaking",
-        "error": "Error",
-        "idle": "HyprVoice"
-    }
-    return titles.get(state, "HyprVoice")
+    from hyprvoice.ui.status_text import format_shared_status
+    # For overlay, the title label maps to the primary status
+    return format_shared_status(snapshot)
 
 def format_overlay_message(snapshot: dict[str, Any]) -> str:
-    msg = snapshot.get("message", "").strip()
-    if msg:
-        return msg
-        
-    state = snapshot.get("state", "idle")
-    defaults = {
-        "listening": "I'm listening...",
-        "transcribing": "Converting speech to text",
-        "thinking": "Thinking",
-        "executing": "Running action",
-        "speaking": "Speaking",
-        "error": "Something went wrong",
-        "idle": ""
-    }
-    return defaults.get(state, "")
+    from hyprvoice.ui.status_text import format_shared_message
+    return format_shared_message(snapshot)
 
 class OverlayWindow:
-    def __init__(self, state_store: AssistantStateStore):
+    def __init__(self, state_store: AssistantStateStore, show_on_start: bool = True):
         self.state_store = state_store
+        self.show_on_start = show_on_start
         
         import gi
         gi.require_version("Gtk", "4.0")
@@ -166,7 +146,11 @@ class OverlayWindow:
         if should_overlay_be_visible(snapshot):
             self.window.present()
         else:
-            self.window.set_visible(False)
+            if not getattr(self, "_has_started", False) and self.show_on_start:
+                self.window.present()
+            else:
+                self.window.set_visible(False)
+        self._has_started = True
 
     def run(self) -> None:
         """Run standalone with its own Gtk.Application."""

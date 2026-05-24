@@ -21,44 +21,16 @@ def chat_panel_available() -> bool:
     return deps["gi"] and deps["gtk4"]
 
 def format_panel_header_title() -> str:
-    return "HyprVoice"
+    from hyprvoice.ui.status_text import format_shared_title
+    return format_shared_title()
 
 def format_panel_header_status(snapshot: dict[str, Any], is_submitting: bool = False) -> str:
-    if is_submitting:
-        return "Thinking..."
-        
-    state = snapshot.get("state", "idle")
-    mapping = {
-        "idle": "Ready",
-        "wake_detected": "Wake detected",
-        "listening": "Listening...",
-        "transcribing": "Transcribing...",
-        "thinking": "Thinking...",
-        "executing": "Executing...",
-        "speaking": "Speaking...",
-        "error": "Error"
-    }
-    return mapping.get(state, "Ready")
+    from hyprvoice.ui.status_text import format_shared_status
+    return format_shared_status(snapshot, is_submitting)
 
 def format_panel_header_substatus(snapshot: dict[str, Any], is_submitting: bool = False) -> str:
-    msg = snapshot.get("message", "").strip()
-    if msg:
-        return msg
-        
-    if is_submitting:
-        return "Waiting for the assistant to respond."
-        
-    state = snapshot.get("state", "idle")
-    defaults = {
-        "idle": "Type a message or use your wake word.",
-        "listening": "I'm listening for your command.",
-        "transcribing": "Converting speech into text.",
-        "thinking": "Working on your request.",
-        "executing": "Running the requested action.",
-        "speaking": "Replying out loud.",
-        "error": "Something went wrong."
-    }
-    return defaults.get(state, "Type a message or use your wake word.")
+    from hyprvoice.ui.status_text import format_shared_message
+    return format_shared_message(snapshot, is_submitting)
 
 def should_panel_input_be_enabled(snapshot: dict[str, Any], is_submitting: bool = False) -> bool:
     if is_submitting:
@@ -133,10 +105,11 @@ def should_refresh_for_revision(last_seen_revision: int, current_revision: int) 
     return current_revision > last_seen_revision
 
 class ChatPanelWindow:
-    def __init__(self, state_store: AssistantStateStore, session: Any | None = None, config: dict[str, Any] | None = None):
+    def __init__(self, state_store: AssistantStateStore, session: Any | None = None, config: dict[str, Any] | None = None, present_on_start: bool = True):
         self.state_store = state_store
         self.session = session
         self.config = config
+        self.present_on_start = present_on_start
         self.is_submitting = False
         
         import gi
@@ -323,7 +296,11 @@ class ChatPanelWindow:
         if self.GLib and self.session:
             self.GLib.timeout_add(300, self.poll_session_updates)
         
-        self.window.present()
+        if self.present_on_start:
+            self.window.present()
+            if self.entry:
+                self.entry.grab_focus()
+                
         self.refresh_header()
 
     def poll_session_updates(self) -> bool:

@@ -4,6 +4,26 @@ from typing import Any
 
 from hyprvoice.core.state import AssistantStateStore
 
+def get_ui_application_id() -> str:
+    return "ai.hyprvoice.app"
+
+def build_ui_launch_profile(mode: str) -> dict[str, Any]:
+    if mode not in ("demo", "live", "assistant"):
+        raise ValueError(f"Invalid launch mode: {mode}")
+        
+    return {
+        "mode": mode,
+        "show_chat_panel_on_launch": True,
+        "overlay_starts_hidden": True,
+        "chat_panel_is_primary": True,
+    }
+
+def should_overlay_start_hidden(profile: dict[str, Any]) -> bool:
+    return profile.get("overlay_starts_hidden", True)
+
+def should_present_chat_panel_on_launch(profile: dict[str, Any]) -> bool:
+    return profile.get("show_chat_panel_on_launch", True)
+
 def check_ui_app_dependencies() -> dict[str, bool]:
     deps = {"gi": False, "gtk4": False}
     try:
@@ -51,13 +71,18 @@ def launch_shared_ui_demo() -> None:
     gi.require_version("Gtk", "4.0")
     from gi.repository import Gtk, GLib
     
+    profile = build_ui_launch_profile("demo")
+    
     store = AssistantStateStore()
     session = ConversationSession()
     for msg in build_demo_session_messages():
         session.add_message(msg["role"], msg["content"])
     
-    overlay = OverlayWindow(store)
-    panel = ChatPanelWindow(store, session=session)
+    overlay_hidden = should_overlay_start_hidden(profile)
+    panel_present = should_present_chat_panel_on_launch(profile)
+    
+    overlay = OverlayWindow(store, show_on_start=not overlay_hidden)
+    panel = ChatPanelWindow(store, session=session, present_on_start=panel_present)
     
     demo_states = build_demo_state_sequence()
     
@@ -68,11 +93,13 @@ def launch_shared_ui_demo() -> None:
         store.set_state(entry["state"], entry["message"])
         return True
     
-    app = Gtk.Application(application_id="org.hyprvoice.app")
+    app = Gtk.Application(application_id=get_ui_application_id())
     
     def on_activate(gtk_app):
         overlay.build_window(gtk_app)
         panel.build_window(gtk_app)
+        if panel.window:
+            panel.window.connect("close-request", lambda w: gtk_app.quit())
         GLib.timeout_add(1500, advance_demo)
     
     app.connect("activate", on_activate)
@@ -91,17 +118,24 @@ def launch_shared_ui_live(config: dict[str, Any]) -> None:
     gi.require_version("Gtk", "4.0")
     from gi.repository import Gtk
     
+    profile = build_ui_launch_profile("live")
+    
     store = AssistantStateStore()
     session = ConversationSession()
     
-    overlay = OverlayWindow(store)
-    panel = ChatPanelWindow(store, session=session, config=config)
+    overlay_hidden = should_overlay_start_hidden(profile)
+    panel_present = should_present_chat_panel_on_launch(profile)
     
-    app = Gtk.Application(application_id="org.hyprvoice.app")
+    overlay = OverlayWindow(store, show_on_start=not overlay_hidden)
+    panel = ChatPanelWindow(store, session=session, config=config, present_on_start=panel_present)
+    
+    app = Gtk.Application(application_id=get_ui_application_id())
     
     def on_activate(gtk_app):
         overlay.build_window(gtk_app)
         panel.build_window(gtk_app)
+        if panel.window:
+            panel.window.connect("close-request", lambda w: gtk_app.quit())
     
     app.connect("activate", on_activate)
     app.run(None)
@@ -159,19 +193,26 @@ def launch_shared_ui_with_assistant(config: dict[str, Any]) -> None:
     gi.require_version("Gtk", "4.0")
     from gi.repository import Gtk
 
+    profile = build_ui_launch_profile("assistant")
+    
     runtime = build_live_runtime(config)
     store = runtime["state_store"]
     session = runtime["session"]
     assistant = runtime["assistant"]
 
-    overlay = OverlayWindow(store)
-    panel = ChatPanelWindow(store, session=session, config=config)
+    overlay_hidden = should_overlay_start_hidden(profile)
+    panel_present = should_present_chat_panel_on_launch(profile)
 
-    app = Gtk.Application(application_id="org.hyprvoice.app")
+    overlay = OverlayWindow(store, show_on_start=not overlay_hidden)
+    panel = ChatPanelWindow(store, session=session, config=config, present_on_start=panel_present)
+
+    app = Gtk.Application(application_id=get_ui_application_id())
 
     def on_activate(gtk_app):
         overlay.build_window(gtk_app)
         panel.build_window(gtk_app)
+        if panel.window:
+            panel.window.connect("close-request", lambda w: gtk_app.quit())
         start_assistant_background(assistant, store)
 
     app.connect("activate", on_activate)
