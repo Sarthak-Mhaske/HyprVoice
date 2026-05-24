@@ -25,6 +25,12 @@ speech recognition. Built for Arch Linux, Hyprland, and Quickshell.
 ## Current Status
 
 > **⚠️ Legacy Implementation:** The existing codebase in this repository is the original, stable Quickshell-based implementation built for Arch Linux and Hyprland. It is working reliably, but is now considered the **legacy version**. A universal, standalone Python rewrite is planned separately. For more details, see [docs/LEGACY.md](docs/LEGACY.md).
+> 
+> **🚀 V2 Alpha is now available for testing!** The standalone Python rewrite is highly functional but still evolving. Check out:
+> - [docs/RUN_V2_LOCAL.md](docs/RUN_V2_LOCAL.md) for quick local setup.
+> - [docs/DEPENDENCIES_V2.md](docs/DEPENDENCIES_V2.md) for the capability guide.
+> - [docs/V2_ALPHA_STATUS.md](docs/V2_ALPHA_STATUS.md) to see what currently works.
+> - [docs/V2_ALPHA_CHECKLIST.md](docs/V2_ALPHA_CHECKLIST.md) for progressive setup validation.
 
 ---
 

@@ -9,6 +9,25 @@ from hyprvoice.core.agent import chat_completion_with_fallback, build_system_pro
 def main():
     if "doctor" in sys.argv or "--doctor" in sys.argv:
         print(format_doctor_report(collect_doctor_report()))
+    elif "version" in sys.argv or "--version" in sys.argv or "-v" in sys.argv:
+        from hyprvoice.__about__ import __version__, __status__
+        print(f"HyprVoice v2 {__version__} ({__status__})")
+    elif "capabilities" in sys.argv:
+        from hyprvoice.core.capabilities import build_capability_report, format_capability_report
+        print(format_capability_report(build_capability_report()))
+    elif "config-init" in sys.argv:
+        from hyprvoice.core.config import write_default_config
+        force = "--force" in sys.argv
+        res = write_default_config(overwrite=force)
+        if res["ok"]:
+            if res["created"]:
+                print(f"Created config at: {res['path']}")
+            elif res["overwritten"]:
+                print(f"Overwritten config at: {res['path']}")
+            else:
+                print(f"Config already exists at: {res['path']} (use --force to overwrite)")
+        else:
+            print(f"Failed to write config: {res['error']}")
     elif "--context" in sys.argv:
         print(format_context_for_llm(detect_environment()))
     elif "transcribe-file" in sys.argv:
