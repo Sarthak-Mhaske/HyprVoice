@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 How to Report V2 Alpha Issues
+    url: https://github.com/Sarthak-Mhaske/HyprVoice/blob/main/docs/REPORTING_V2_ISSUES.md
+    about: Read this quick guide on what diagnostic info to include in your V2 bug reports.

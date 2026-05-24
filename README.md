@@ -31,6 +31,7 @@ speech recognition. Built for Arch Linux, Hyprland, and Quickshell.
 > - [docs/DEPENDENCIES_V2.md](docs/DEPENDENCIES_V2.md) for the capability guide.
 > - [docs/V2_ALPHA_STATUS.md](docs/V2_ALPHA_STATUS.md) to see what currently works.
 > - [docs/V2_ALPHA_CHECKLIST.md](docs/V2_ALPHA_CHECKLIST.md) for progressive setup validation.
+> - [docs/REPORTING_V2_ISSUES.md](docs/REPORTING_V2_ISSUES.md) to file helpful bug reports.
 
 ---
 
