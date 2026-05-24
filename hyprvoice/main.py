@@ -107,6 +107,9 @@ def main():
     elif "overlay-demo" in sys.argv:
         from hyprvoice.ui.overlay import launch_overlay_demo
         launch_overlay_demo()
+    elif "chat-demo" in sys.argv:
+        from hyprvoice.ui.chat_panel import launch_chat_panel_demo
+        launch_chat_panel_demo()
     else:
         print("HyprVoice v2 launcher ready")
 
