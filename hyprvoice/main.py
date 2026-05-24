@@ -110,6 +110,10 @@ def main():
     elif "chat-demo" in sys.argv:
         from hyprvoice.ui.chat_panel import launch_chat_panel_demo
         launch_chat_panel_demo()
+    elif "chat-live" in sys.argv:
+        from hyprvoice.ui.chat_panel import launch_chat_panel_live
+        cfg = load_config()
+        launch_chat_panel_live(cfg)
     else:
         print("HyprVoice v2 launcher ready")
 

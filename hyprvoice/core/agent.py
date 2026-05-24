@@ -352,6 +352,30 @@ def chat_with_session(session: Any, user_text: str, config: dict[str, Any]) -> d
         
     return res
 
+def reply_in_session(session: Any, config: dict[str, Any]) -> dict[str, Any]:
+    """Generate an assistant reply using the session's current message history.
+    
+    Assumes the latest user message is already appended to the session.
+    Sets the system prompt on the session if not already configured.
+    """
+    if session.message_count() == 0:
+        return {"ok": False, "content": "", "error": "Session has no messages."}
+    
+    if session._system_prompt is None:
+        env = detect_environment()
+        sys_prompt = build_system_prompt(env)
+        session.set_system_prompt(sys_prompt)
+    
+    api_messages = session.build_api_messages()
+    
+    res = chat_completion_with_fallback(api_messages, config, system_prompt="")
+    
+    if res["ok"] and res.get("content", "").strip():
+        session.add_assistant_message(res["content"])
+    
+    return res
+
+
 def chat_completion_with_tools(messages: list[dict[str, Any]], config: dict[str, Any], system_prompt: str | None = None) -> dict[str, Any]:
     from hyprvoice.core.tools import build_openai_tool_schema
     

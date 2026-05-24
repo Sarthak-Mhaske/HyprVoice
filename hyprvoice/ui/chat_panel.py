@@ -82,9 +82,11 @@ def normalize_input_text(text: str) -> str:
     return cleaned if cleaned else ""
 
 class ChatPanelWindow:
-    def __init__(self, state_store: AssistantStateStore, session: Any | None = None):
+    def __init__(self, state_store: AssistantStateStore, session: Any | None = None, config: dict[str, Any] | None = None):
         self.state_store = state_store
         self.session = session
+        self.config = config
+        self.is_submitting = False
         
         import gi
         gi.require_version("Gtk", "4.0")
@@ -307,6 +309,8 @@ class ChatPanelWindow:
     def handle_submit(self, *_args) -> None:
         if not self.entry or not self.session:
             return
+        if self.is_submitting:
+            return
             
         raw = self.entry.get_text()
         text = normalize_input_text(raw)
@@ -317,6 +321,36 @@ class ChatPanelWindow:
         if added:
             self.entry.set_text("")
             self.refresh_messages()
+            if self.config:
+                self.request_assistant_reply()
+
+    def request_assistant_reply(self) -> None:
+        import threading
+        self.is_submitting = True
+        if self.entry:
+            self.entry.set_sensitive(False)
+        self.state_store.set_state("thinking", "Generating reply...")
+        thread = threading.Thread(target=self._reply_worker, daemon=True)
+        thread.start()
+
+    def _reply_worker(self) -> None:
+        try:
+            from hyprvoice.core.agent import reply_in_session
+            result = reply_in_session(self.session, self.config)
+        except Exception as e:
+            result = {"ok": False, "content": "", "error": str(e)}
+        self.GLib.idle_add(self._finish_reply, result)
+
+    def _finish_reply(self, result: dict[str, Any]) -> None:
+        self.is_submitting = False
+        if self.entry:
+            self.entry.set_sensitive(True)
+            self.entry.grab_focus()
+        self.refresh_messages()
+        if result.get("ok"):
+            self.state_store.set_state("idle", "")
+        else:
+            self.state_store.set_state("error", result.get("error", "Reply failed"))
 
     def run(self) -> None:
         self.app.run(None)
@@ -360,4 +394,17 @@ def launch_chat_panel_demo(state_store: AssistantStateStore | None = None) -> No
     GLib.timeout_add(2000, advance_demo)
     
     win = ChatPanelWindow(store, session=session)
+    win.run()
+
+def launch_chat_panel_live(config: dict[str, Any]) -> None:
+    if not chat_panel_available():
+        print("GTK4 dependencies missing, cannot launch chat panel.")
+        return
+        
+    from hyprvoice.core.session import ConversationSession
+    
+    store = AssistantStateStore()
+    session = ConversationSession()
+    
+    win = ChatPanelWindow(store, session=session, config=config)
     win.run()
