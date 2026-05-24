@@ -113,7 +113,7 @@ def build_live_runtime(config: dict[str, Any]) -> dict[str, Any]:
 
     state_store = AssistantStateStore()
     session = ConversationSession()
-    assistant = HyprVoiceAssistant(config, state_store=state_store)
+    assistant = HyprVoiceAssistant(config, state_store=state_store, session=session)
 
     return {
         "state_store": state_store,
