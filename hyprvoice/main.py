@@ -114,6 +114,13 @@ def main():
         from hyprvoice.ui.chat_panel import launch_chat_panel_live
         cfg = load_config()
         launch_chat_panel_live(cfg)
+    elif "ui-demo" in sys.argv:
+        from hyprvoice.ui.app import launch_shared_ui_demo
+        launch_shared_ui_demo()
+    elif "ui-live" in sys.argv:
+        from hyprvoice.ui.app import launch_shared_ui_live
+        cfg = load_config()
+        launch_shared_ui_live(cfg)
     else:
         print("HyprVoice v2 launcher ready")
 

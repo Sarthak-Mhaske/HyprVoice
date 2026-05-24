@@ -70,9 +70,7 @@ class OverlayWindow:
         self.GLib = GLib
         self.Gdk = Gdk
         
-        self.app = Gtk.Application(application_id="org.hyprvoice.overlay")
-        self.app.connect("activate", self._on_activate)
-        
+        self.app: Gtk.Application | None = None
         self.window: Gtk.ApplicationWindow | None = None
         self.box: Gtk.Box | None = None
         self.title_label: Gtk.Label | None = None
@@ -116,7 +114,8 @@ class OverlayWindow:
             self.Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-    def _on_activate(self, app: Any) -> None:
+    def build_window(self, app: Any) -> None:
+        """Build the overlay window inside the given Gtk.Application."""
         self.window = self.Gtk.ApplicationWindow(application=app)
         self.window.set_title("HyprVoice Overlay")
         self.window.set_decorated(False)
@@ -170,6 +169,9 @@ class OverlayWindow:
             self.window.set_visible(False)
 
     def run(self) -> None:
+        """Run standalone with its own Gtk.Application."""
+        self.app = self.Gtk.Application(application_id="org.hyprvoice.overlay")
+        self.app.connect("activate", lambda app: self.build_window(app))
         self.app.run(None)
 
     def close(self) -> None:

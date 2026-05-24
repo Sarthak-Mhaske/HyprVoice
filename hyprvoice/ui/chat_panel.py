@@ -118,9 +118,7 @@ class ChatPanelWindow:
         self.GLib = GLib
         self.Gdk = Gdk
         
-        self.app = Gtk.Application(application_id="org.hyprvoice.chatpanel")
-        self.app.connect("activate", self._on_activate)
-        
+        self.app: Gtk.Application | None = None
         self.window: Gtk.ApplicationWindow | None = None
         self.status_label: Gtk.Label | None = None
         self.placeholder_label: Gtk.Label | None = None
@@ -200,7 +198,8 @@ class ChatPanelWindow:
             self.Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-    def _on_activate(self, app: Any) -> None:
+    def build_window(self, app: Any) -> None:
+        """Build the chat panel window inside the given Gtk.Application."""
         self.window = self.Gtk.ApplicationWindow(application=app)
         self.window.set_title("HyprVoice Chat")
         self.window.set_default_size(400, 700)
@@ -381,6 +380,9 @@ class ChatPanelWindow:
         return False  # do not repeat
 
     def run(self) -> None:
+        """Run standalone with its own Gtk.Application."""
+        self.app = self.Gtk.Application(application_id="org.hyprvoice.chatpanel")
+        self.app.connect("activate", lambda app: self.build_window(app))
         self.app.run(None)
 
     def close(self) -> None:
