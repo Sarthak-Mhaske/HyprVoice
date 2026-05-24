@@ -103,6 +103,9 @@ def derive_post_reply_state(result: dict[str, Any]) -> tuple[str, str, bool]:
     
     return ("idle", "", False)
 
+def should_refresh_for_revision(last_seen_revision: int, current_revision: int) -> bool:
+    return current_revision > last_seen_revision
+
 class ChatPanelWindow:
     def __init__(self, state_store: AssistantStateStore, session: Any | None = None, config: dict[str, Any] | None = None):
         self.state_store = state_store
@@ -123,6 +126,8 @@ class ChatPanelWindow:
         self.status_label: Gtk.Label | None = None
         self.placeholder_label: Gtk.Label | None = None
         self.current_state_class = "state-idle"
+        
+        self._last_session_revision = self.session.get_revision() if self.session else 0
         
         self._load_css()
         self.state_store.subscribe(self._on_state_change)
@@ -272,7 +277,19 @@ class ChatPanelWindow:
         self.update_from_snapshot(snap)
         self.refresh_messages()
         
+        if self.GLib and self.session:
+            self.GLib.timeout_add(300, self.poll_session_updates)
+        
         self.window.present()
+
+    def poll_session_updates(self) -> bool:
+        if not self.session:
+            return True
+        current_rev = self.session.get_revision()
+        if should_refresh_for_revision(self._last_session_revision, current_rev):
+            self._last_session_revision = current_rev
+            self.refresh_messages()
+        return True
 
     def _on_state_change(self, snapshot: dict[str, Any]) -> None:
         if self.GLib and self.window:
@@ -340,6 +357,7 @@ class ChatPanelWindow:
             
         added = self.session.add_user_message(text)
         if added:
+            self._last_session_revision = self.session.get_revision()
             self.entry.set_text("")
             self.refresh_messages()
             if self.config:
@@ -367,6 +385,8 @@ class ChatPanelWindow:
         if self.entry:
             self.entry.set_sensitive(True)
             self.entry.grab_focus()
+        if self.session:
+            self._last_session_revision = self.session.get_revision()
         self.refresh_messages()
         
         state, message, should_reset = derive_post_reply_state(result)

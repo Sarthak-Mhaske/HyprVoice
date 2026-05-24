@@ -124,3 +124,9 @@ def test_derive_post_reply_state_fallback():
     state, message, reset = derive_post_reply_state({"ok": True})
     assert state == "idle"
     assert reset is False
+
+def test_should_refresh_for_revision():
+    from hyprvoice.ui.chat_panel import should_refresh_for_revision
+    assert should_refresh_for_revision(0, 1) is True
+    assert should_refresh_for_revision(2, 2) is False
+    assert should_refresh_for_revision(5, 3) is False
