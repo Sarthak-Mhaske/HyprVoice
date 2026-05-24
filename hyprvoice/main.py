@@ -121,6 +121,10 @@ def main():
         from hyprvoice.ui.app import launch_shared_ui_live
         cfg = load_config()
         launch_shared_ui_live(cfg)
+    elif "ui-assistant" in sys.argv:
+        from hyprvoice.ui.app import launch_shared_ui_with_assistant
+        cfg = load_config()
+        launch_shared_ui_with_assistant(cfg)
     else:
         print("HyprVoice v2 launcher ready")
 

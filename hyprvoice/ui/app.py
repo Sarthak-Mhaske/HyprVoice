@@ -105,3 +105,77 @@ def launch_shared_ui_live(config: dict[str, Any]) -> None:
     
     app.connect("activate", on_activate)
     app.run(None)
+
+def build_live_runtime(config: dict[str, Any]) -> dict[str, Any]:
+    """Build the shared runtime objects for live assistant mode."""
+    from hyprvoice.core.session import ConversationSession
+    from hyprvoice.core.assistant_loop import HyprVoiceAssistant
+
+    state_store = AssistantStateStore()
+    session = ConversationSession()
+    assistant = HyprVoiceAssistant(config, state_store=state_store)
+
+    return {
+        "state_store": state_store,
+        "session": session,
+        "assistant": assistant,
+        "config": config,
+    }
+
+def run_assistant_worker(assistant: Any, state_store: AssistantStateStore) -> None:
+    """Run the assistant loop, publishing errors to the state store on failure."""
+    try:
+        assistant.run_forever()
+    except Exception as e:
+        state_store.set_state("error", f"Assistant loop crashed: {e}")
+
+def start_assistant_background(assistant: Any, state_store: AssistantStateStore) -> Any:
+    """Start the assistant loop in a daemon thread."""
+    import threading
+    thread = threading.Thread(
+        target=run_assistant_worker,
+        args=(assistant, state_store),
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+def stop_assistant_background(assistant: Any) -> None:
+    """Stop the assistant loop gracefully."""
+    try:
+        assistant.stop()
+    except Exception:
+        pass
+
+def launch_shared_ui_with_assistant(config: dict[str, Any]) -> None:
+    if not ui_app_available():
+        print("GTK4 dependencies missing, cannot launch shared UI.")
+        return
+
+    from hyprvoice.ui.overlay import OverlayWindow
+    from hyprvoice.ui.chat_panel import ChatPanelWindow
+
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gtk
+
+    runtime = build_live_runtime(config)
+    store = runtime["state_store"]
+    session = runtime["session"]
+    assistant = runtime["assistant"]
+
+    overlay = OverlayWindow(store)
+    panel = ChatPanelWindow(store, session=session, config=config)
+
+    app = Gtk.Application(application_id="org.hyprvoice.app")
+
+    def on_activate(gtk_app):
+        overlay.build_window(gtk_app)
+        panel.build_window(gtk_app)
+        start_assistant_background(assistant, store)
+
+    app.connect("activate", on_activate)
+    try:
+        app.run(None)
+    finally:
+        stop_assistant_background(assistant)
