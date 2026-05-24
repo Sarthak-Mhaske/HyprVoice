@@ -7,7 +7,9 @@ from hyprvoice.ui.chat_panel import (
     format_chat_panel_placeholder,
     format_message_row,
     session_messages_to_rows,
-    normalize_input_text
+    normalize_input_text,
+    format_submit_state_message,
+    derive_post_reply_state
 )
 
 def test_check_chat_panel_dependencies():
@@ -79,3 +81,46 @@ def test_normalize_input_text():
 
 def test_normalize_input_preserves_inner_whitespace():
     assert normalize_input_text("  hello   world  ") == "hello   world"
+
+def test_format_submit_state_message():
+    msg = format_submit_state_message()
+    assert isinstance(msg, str)
+    assert len(msg) > 0
+
+def test_derive_post_reply_state_failure():
+    state, message, reset = derive_post_reply_state({"ok": False, "error": "rate limit"})
+    assert state == "error"
+    assert "rate limit" in message
+    assert reset is False
+
+def test_derive_post_reply_state_tool_followup():
+    state, message, reset = derive_post_reply_state({
+        "ok": True, "mode": "tool_followup",
+        "assistant_content": "Opened it",
+        "tool_result": {"message": "URL opened"}
+    })
+    assert state == "executing"
+    assert "URL opened" in message
+    assert reset is True
+
+def test_derive_post_reply_state_tool_call():
+    state, message, reset = derive_post_reply_state({
+        "ok": True, "mode": "tool_call",
+        "tool_result": {"message": "Notified"}
+    })
+    assert state == "executing"
+    assert "Notified" in message
+    assert reset is True
+
+def test_derive_post_reply_state_assistant_reply():
+    state, message, reset = derive_post_reply_state({
+        "ok": True, "mode": "assistant_reply",
+        "assistant_content": "Hello"
+    })
+    assert state == "idle"
+    assert reset is False
+
+def test_derive_post_reply_state_fallback():
+    state, message, reset = derive_post_reply_state({"ok": True})
+    assert state == "idle"
+    assert reset is False

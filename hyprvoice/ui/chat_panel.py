@@ -81,6 +81,28 @@ def normalize_input_text(text: str) -> str:
     cleaned = text.strip()
     return cleaned if cleaned else ""
 
+def format_submit_state_message() -> str:
+    return "Thinking..."
+
+def derive_post_reply_state(result: dict[str, Any]) -> tuple[str, str, bool]:
+    """Derive (state, message, should_reset_to_idle) from an agent result dict."""
+    if not result.get("ok"):
+        return ("error", result.get("error", "Reply failed"), False)
+    
+    mode = result.get("mode", "")
+    
+    if mode == "tool_followup":
+        tool_res = result.get("tool_result") or {}
+        msg = tool_res.get("message") or result.get("assistant_content") or "Action completed"
+        return ("executing", msg, True)
+    
+    if mode == "tool_call":
+        tool_res = result.get("tool_result") or {}
+        msg = tool_res.get("message") or "Action executed"
+        return ("executing", msg, True)
+    
+    return ("idle", "", False)
+
 class ChatPanelWindow:
     def __init__(self, state_store: AssistantStateStore, session: Any | None = None, config: dict[str, Any] | None = None):
         self.state_store = state_store
@@ -329,7 +351,7 @@ class ChatPanelWindow:
         self.is_submitting = True
         if self.entry:
             self.entry.set_sensitive(False)
-        self.state_store.set_state("thinking", "Generating reply...")
+        self.state_store.set_state("thinking", format_submit_state_message())
         thread = threading.Thread(target=self._reply_worker, daemon=True)
         thread.start()
 
@@ -347,10 +369,16 @@ class ChatPanelWindow:
             self.entry.set_sensitive(True)
             self.entry.grab_focus()
         self.refresh_messages()
-        if result.get("ok"):
-            self.state_store.set_state("idle", "")
-        else:
-            self.state_store.set_state("error", result.get("error", "Reply failed"))
+        
+        state, message, should_reset = derive_post_reply_state(result)
+        self.state_store.set_state(state, message)
+        
+        if should_reset:
+            self.GLib.timeout_add(1000, self._reset_to_idle)
+
+    def _reset_to_idle(self) -> bool:
+        self.state_store.set_state("idle", "")
+        return False  # do not repeat
 
     def run(self) -> None:
         self.app.run(None)
