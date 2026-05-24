@@ -6,7 +6,8 @@ from hyprvoice.ui.chat_panel import (
     format_chat_panel_status,
     format_chat_panel_placeholder,
     format_message_row,
-    session_messages_to_rows
+    session_messages_to_rows,
+    normalize_input_text
 )
 
 def test_check_chat_panel_dependencies():
@@ -68,3 +69,13 @@ def test_session_messages_to_rows():
 
 def test_session_messages_to_rows_empty():
     assert session_messages_to_rows([]) == []
+
+def test_normalize_input_text():
+    assert normalize_input_text("  hello  ") == "hello"
+    assert normalize_input_text("") == ""
+    assert normalize_input_text("   ") == ""
+    assert normalize_input_text("\t\n") == ""
+    assert normalize_input_text("hi there") == "hi there"
+
+def test_normalize_input_preserves_inner_whitespace():
+    assert normalize_input_text("  hello   world  ") == "hello   world"

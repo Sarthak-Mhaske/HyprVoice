@@ -77,6 +77,10 @@ def session_messages_to_rows(messages: list[dict[str, Any]]) -> list[dict[str, A
             rows.append(row)
     return rows
 
+def normalize_input_text(text: str) -> str:
+    cleaned = text.strip()
+    return cleaned if cleaned else ""
+
 class ChatPanelWindow:
     def __init__(self, state_store: AssistantStateStore, session: Any | None = None):
         self.state_store = state_store
@@ -221,15 +225,17 @@ class ChatPanelWindow:
         input_row = self.Gtk.Box(orientation=self.Gtk.Orientation.HORIZONTAL)
         input_row.add_css_class("input-row")
         
-        entry = self.Gtk.Entry()
-        entry.set_placeholder_text("Type a message...")
-        entry.set_hexpand(True)
-        entry.add_css_class("input-entry")
+        self.entry = self.Gtk.Entry()
+        self.entry.set_placeholder_text("Type a message...")
+        self.entry.set_hexpand(True)
+        self.entry.add_css_class("input-entry")
+        self.entry.connect("activate", self.handle_submit)
         
         send_btn = self.Gtk.Button(label="Send")
         send_btn.add_css_class("send-button")
+        send_btn.connect("clicked", self.handle_submit)
         
-        input_row.append(entry)
+        input_row.append(self.entry)
         input_row.append(send_btn)
         
         # Assemble
@@ -297,6 +303,20 @@ class ChatPanelWindow:
         # Scroll to bottom
         adj = self.scroll.get_vadjustment()
         self.GLib.idle_add(lambda: adj.set_value(adj.get_upper()))
+
+    def handle_submit(self, *_args) -> None:
+        if not self.entry or not self.session:
+            return
+            
+        raw = self.entry.get_text()
+        text = normalize_input_text(raw)
+        if not text:
+            return
+            
+        added = self.session.add_user_message(text)
+        if added:
+            self.entry.set_text("")
+            self.refresh_messages()
 
     def run(self) -> None:
         self.app.run(None)
