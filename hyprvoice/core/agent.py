@@ -375,6 +375,30 @@ def reply_in_session(session: Any, config: dict[str, Any]) -> dict[str, Any]:
     
     return res
 
+def reply_with_tools_in_session(session: Any, config: dict[str, Any]) -> dict[str, Any]:
+    """Generate an assistant reply using the tool-capable agent path.
+    
+    Assumes the latest user message is already appended to the session.
+    Uses run_single_tool_turn_with_followup for full agentic behavior.
+    """
+    if session.message_count() == 0:
+        return {"ok": False, "assistant_content": "", "error": "Session has no messages.", "mode": "error"}
+    
+    if session._system_prompt is None:
+        env = detect_environment()
+        sys_prompt = build_system_prompt(env)
+        session.set_system_prompt(sys_prompt)
+    
+    api_messages = session.build_api_messages()
+    
+    res = run_single_tool_turn_with_followup(api_messages, config, system_prompt="")
+    
+    assistant_text = res.get("assistant_content", "").strip()
+    if res["ok"] and assistant_text:
+        session.add_assistant_message(assistant_text)
+    
+    return res
+
 
 def chat_completion_with_tools(messages: list[dict[str, Any]], config: dict[str, Any], system_prompt: str | None = None) -> dict[str, Any]:
     from hyprvoice.core.tools import build_openai_tool_schema

@@ -335,10 +335,10 @@ class ChatPanelWindow:
 
     def _reply_worker(self) -> None:
         try:
-            from hyprvoice.core.agent import reply_in_session
-            result = reply_in_session(self.session, self.config)
+            from hyprvoice.core.agent import reply_with_tools_in_session
+            result = reply_with_tools_in_session(self.session, self.config)
         except Exception as e:
-            result = {"ok": False, "content": "", "error": str(e)}
+            result = {"ok": False, "assistant_content": "", "error": str(e)}
         self.GLib.idle_add(self._finish_reply, result)
 
     def _finish_reply(self, result: dict[str, Any]) -> None:
