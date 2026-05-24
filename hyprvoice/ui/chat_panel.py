@@ -20,26 +20,52 @@ def chat_panel_available() -> bool:
     deps = check_chat_panel_dependencies()
     return deps["gi"] and deps["gtk4"]
 
-def format_chat_panel_title() -> str:
+def format_panel_header_title() -> str:
     return "HyprVoice"
 
-def format_chat_panel_status(snapshot: dict[str, Any]) -> str:
+def format_panel_header_status(snapshot: dict[str, Any], is_submitting: bool = False) -> str:
+    if is_submitting:
+        return "Thinking..."
+        
+    state = snapshot.get("state", "idle")
+    mapping = {
+        "idle": "Ready",
+        "wake_detected": "Wake detected",
+        "listening": "Listening...",
+        "transcribing": "Transcribing...",
+        "thinking": "Thinking...",
+        "executing": "Executing...",
+        "speaking": "Speaking...",
+        "error": "Error"
+    }
+    return mapping.get(state, "Ready")
+
+def format_panel_header_substatus(snapshot: dict[str, Any], is_submitting: bool = False) -> str:
     msg = snapshot.get("message", "").strip()
     if msg:
         return msg
         
+    if is_submitting:
+        return "Waiting for the assistant to respond."
+        
     state = snapshot.get("state", "idle")
     defaults = {
-        "idle": "Idle",
-        "wake_detected": "Wake word detected...",
-        "listening": "Listening...",
-        "transcribing": "Transcribing...",
-        "thinking": "Thinking...",
-        "executing": "Executing action...",
-        "speaking": "Speaking...",
-        "error": "Error"
+        "idle": "Type a message or use your wake word.",
+        "listening": "I'm listening for your command.",
+        "transcribing": "Converting speech into text.",
+        "thinking": "Working on your request.",
+        "executing": "Running the requested action.",
+        "speaking": "Replying out loud.",
+        "error": "Something went wrong."
     }
-    return defaults.get(state, "Idle")
+    return defaults.get(state, "Type a message or use your wake word.")
+
+def should_panel_input_be_enabled(snapshot: dict[str, Any], is_submitting: bool = False) -> bool:
+    if is_submitting:
+        return False
+    if snapshot.get("state") == "transcribing":
+        return False
+    return True
 
 def format_chat_panel_placeholder(snapshot: dict[str, Any]) -> str:
     state = snapshot.get("state", "idle")
@@ -82,7 +108,7 @@ def normalize_input_text(text: str) -> str:
     return cleaned if cleaned else ""
 
 def format_submit_state_message() -> str:
-    return "Thinking..."
+    return ""
 
 def derive_post_reply_state(result: dict[str, Any]) -> tuple[str, str, bool]:
     """Derive (state, message, should_reset_to_idle) from an agent result dict."""
@@ -124,8 +150,12 @@ class ChatPanelWindow:
         self.app: Gtk.Application | None = None
         self.window: Gtk.ApplicationWindow | None = None
         self.status_label: Gtk.Label | None = None
+        self.substatus_label: Gtk.Label | None = None
         self.placeholder_label: Gtk.Label | None = None
         self.current_state_class = "state-idle"
+        
+        self.entry: Gtk.Entry | None = None
+        self.send_btn: Gtk.Button | None = None
         
         self._last_session_revision = self.session.get_revision() if self.session else 0
         
@@ -148,9 +178,15 @@ class ChatPanelWindow:
             color: #ffffff;
         }
         .panel-status {
+            font-size: 14px;
+            color: #ffffff;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .panel-substatus {
             font-size: 12px;
             color: #aaaaaa;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         .chat-area {
             background-color: #1a1a20;
@@ -215,16 +251,23 @@ class ChatPanelWindow:
         header_box = self.Gtk.Box(orientation=self.Gtk.Orientation.VERTICAL)
         header_box.add_css_class("header-box")
         
-        title_label = self.Gtk.Label(label=format_chat_panel_title())
+        title_label = self.Gtk.Label(label=format_panel_header_title())
         title_label.add_css_class("panel-title")
         title_label.set_halign(self.Gtk.Align.START)
         
         self.status_label = self.Gtk.Label()
         self.status_label.add_css_class("panel-status")
         self.status_label.set_halign(self.Gtk.Align.START)
+
+        self.substatus_label = self.Gtk.Label()
+        self.substatus_label.add_css_class("panel-substatus")
+        self.substatus_label.set_halign(self.Gtk.Align.START)
+        self.substatus_label.set_wrap(True)
+        self.substatus_label.set_max_width_chars(40)
         
         header_box.append(title_label)
         header_box.append(self.status_label)
+        header_box.append(self.substatus_label)
         
         # Scrollable Chat Area
         self.scroll = self.Gtk.ScrolledWindow()
@@ -259,12 +302,12 @@ class ChatPanelWindow:
         self.entry.add_css_class("input-entry")
         self.entry.connect("activate", self.handle_submit)
         
-        send_btn = self.Gtk.Button(label="Send")
-        send_btn.add_css_class("send-button")
-        send_btn.connect("clicked", self.handle_submit)
+        self.send_btn = self.Gtk.Button(label="Send")
+        self.send_btn.add_css_class("send-button")
+        self.send_btn.connect("clicked", self.handle_submit)
         
         input_row.append(self.entry)
-        input_row.append(send_btn)
+        input_row.append(self.send_btn)
         
         # Assemble
         main_box.append(header_box)
@@ -281,6 +324,7 @@ class ChatPanelWindow:
             self.GLib.timeout_add(300, self.poll_session_updates)
         
         self.window.present()
+        self.refresh_header()
 
     def poll_session_updates(self) -> bool:
         if not self.session:
@@ -296,20 +340,33 @@ class ChatPanelWindow:
             self.GLib.idle_add(self.update_from_snapshot, snapshot)
 
     def update_from_snapshot(self, snapshot: dict[str, Any]) -> None:
-        if not self.window or not self.status_label or not self.placeholder_label:
+        if not self.window or not self.placeholder_label:
             return
             
-        self.status_label.set_text(format_chat_panel_status(snapshot))
-        
         has_messages = self.session and self.session.message_count() > 0
         if not has_messages:
             self.placeholder_label.set_text(format_chat_panel_placeholder(snapshot))
+            
+        self.refresh_header()
+
+    def refresh_header(self) -> None:
+        if not self.status_label or not self.substatus_label:
+            return
+            
+        snap = self.state_store.snapshot()
+        self.status_label.set_text(format_panel_header_status(snap, self.is_submitting))
+        self.substatus_label.set_text(format_panel_header_substatus(snap, self.is_submitting))
         
         self.status_label.remove_css_class(f"status-{self.current_state_class}")
-        
-        state = snapshot.get("state", "idle")
+        state = snap.get("state", "idle")
         self.current_state_class = state
         self.status_label.add_css_class(f"status-{state}")
+        
+        enabled = should_panel_input_be_enabled(snap, self.is_submitting)
+        if self.entry:
+            self.entry.set_sensitive(enabled)
+        if self.send_btn:
+            self.send_btn.set_sensitive(enabled)
 
     def refresh_messages(self) -> None:
         if not self.chat_inner_box or not self.placeholder_label:
@@ -366,9 +423,8 @@ class ChatPanelWindow:
     def request_assistant_reply(self) -> None:
         import threading
         self.is_submitting = True
-        if self.entry:
-            self.entry.set_sensitive(False)
         self.state_store.set_state("thinking", format_submit_state_message())
+        self.refresh_header()
         thread = threading.Thread(target=self._reply_worker, daemon=True)
         thread.start()
 
@@ -383,7 +439,6 @@ class ChatPanelWindow:
     def _finish_reply(self, result: dict[str, Any]) -> None:
         self.is_submitting = False
         if self.entry:
-            self.entry.set_sensitive(True)
             self.entry.grab_focus()
         if self.session:
             self._last_session_revision = self.session.get_revision()

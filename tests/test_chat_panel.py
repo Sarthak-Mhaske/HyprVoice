@@ -2,9 +2,10 @@ import pytest
 from hyprvoice.ui.chat_panel import (
     check_chat_panel_dependencies,
     chat_panel_available,
-    format_chat_panel_title,
-    format_chat_panel_status,
-    format_chat_panel_placeholder,
+    format_panel_header_title,
+    format_panel_header_status,
+    format_panel_header_substatus,
+    should_panel_input_be_enabled,
     format_message_row,
     session_messages_to_rows,
     normalize_input_text,
@@ -18,21 +19,32 @@ def test_check_chat_panel_dependencies():
     assert "gi" in deps
     assert "gtk4" in deps
 
-def test_format_chat_panel_title():
-    assert format_chat_panel_title() == "HyprVoice"
+def test_format_panel_header_title():
+    assert format_panel_header_title() == "HyprVoice"
 
-def test_format_chat_panel_status():
-    assert format_chat_panel_status({"state": "thinking", "message": "custom msg"}) == "custom msg"
-    assert format_chat_panel_status({"state": "listening", "message": ""}) == "Listening..."
-    assert format_chat_panel_status({"state": "idle", "message": ""}) == "Idle"
-    assert format_chat_panel_status({}) == "Idle"
+def test_format_panel_header_status():
+    assert format_panel_header_status({}, is_submitting=True) == "Thinking..."
+    assert format_panel_header_status({"state": "thinking"}) == "Thinking..."
+    assert format_panel_header_status({"state": "listening"}) == "Listening..."
+    assert format_panel_header_status({"state": "idle"}) == "Ready"
+    assert format_panel_header_status({}) == "Ready"
 
-def test_format_chat_panel_placeholder():
-    assert "Voice and text" in format_chat_panel_placeholder({"state": "idle"})
-    assert "Listening for" in format_chat_panel_placeholder({"state": "listening"})
-    assert "thinking" in format_chat_panel_placeholder({"state": "thinking"})
-    assert "error" in format_chat_panel_placeholder({"state": "error"}).lower()
-    assert "Processing" in format_chat_panel_placeholder({"state": "executing"})
+def test_format_panel_header_substatus():
+    assert format_panel_header_substatus({"state": "thinking", "message": "custom msg"}) == "custom msg"
+    assert "Type a message" in format_panel_header_substatus({"state": "idle"})
+    assert "listening" in format_panel_header_substatus({"state": "listening"})
+    assert "Converting" in format_panel_header_substatus({"state": "transcribing"})
+    assert "Working" in format_panel_header_substatus({"state": "thinking"})
+    assert "Running" in format_panel_header_substatus({"state": "executing"})
+    assert "Replying" in format_panel_header_substatus({"state": "speaking"})
+    assert "wrong" in format_panel_header_substatus({"state": "error"})
+    assert "Waiting" in format_panel_header_substatus({"state": "idle"}, is_submitting=True)
+
+def test_should_panel_input_be_enabled():
+    assert should_panel_input_be_enabled({}, is_submitting=True) is False
+    assert should_panel_input_be_enabled({"state": "transcribing"}) is False
+    assert should_panel_input_be_enabled({"state": "idle"}) is True
+    assert should_panel_input_be_enabled({"state": "speaking"}) is True
 
 def test_format_message_row_user():
     row = format_message_row({"role": "user", "content": " hello "})
@@ -83,9 +95,7 @@ def test_normalize_input_preserves_inner_whitespace():
     assert normalize_input_text("  hello   world  ") == "hello   world"
 
 def test_format_submit_state_message():
-    msg = format_submit_state_message()
-    assert isinstance(msg, str)
-    assert len(msg) > 0
+    assert format_submit_state_message() == ""
 
 def test_derive_post_reply_state_failure():
     state, message, reset = derive_post_reply_state({"ok": False, "error": "rate limit"})
