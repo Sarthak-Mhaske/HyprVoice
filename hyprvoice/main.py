@@ -104,6 +104,9 @@ def main():
         for st in ["listening", "transcribing", "thinking", "executing", "speaking", "idle"]:
             s.set_state(st, f"Entering {st}")
             time.sleep(0.5)
+    elif "overlay-demo" in sys.argv:
+        from hyprvoice.ui.overlay import launch_overlay_demo
+        launch_overlay_demo()
     else:
         print("HyprVoice v2 launcher ready")
 
