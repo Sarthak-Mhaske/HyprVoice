@@ -1261,6 +1261,7 @@ Singleton {
 
     function sendUserMessage(message) {
         if (message.length === 0) return;
+        root.activeVoiceSeq = -1; // Reset voice state for manual text input
         root.addMessage(message, "user");
         requester.makeRequest();
     }
@@ -1689,7 +1690,10 @@ Singleton {
             root.voiceSeq++;
             root.activeVoiceSeq = root.voiceSeq;
             root.voiceInputLang = "english";
-            root.sendUserMessage(transcription);
+            
+            if (transcription.length === 0) return;
+            root.addMessage(transcription, "user");
+            requester.makeRequest();
         }
         
         function voiceMessageTranslated(original: string, translated: string, lang: string): void {
