@@ -175,6 +175,12 @@ if [ "$SKIP_DEPS" != true ]; then
         zlib
         xz
         tk
+        bzip2
+        readline
+        sqlite
+        libffi
+        socat
+        yt-dlp
     )
 
     echo -e "  ${YELLOW}Installing dependencies...${NC}"
@@ -200,7 +206,6 @@ if [ "$SKIP_DEPS" != true ]; then
 
     AUR_PACKAGES=(
         grimblast-git
-        yt-dlp
     )
 
     for pkg in "${AUR_PACKAGES[@]}"; do
@@ -380,12 +385,12 @@ if [ -z "$PYTHON_BIN" ]; then
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$(pyenv init --path 2>/dev/null)" || true
         
-        echo -e "  ${YELLOW}→${NC} Installing Python 3.12.8 (this may take 5-10 minutes)..."
-        if pyenv install 3.12.8 2>/dev/null; then
+        echo -e "  ${YELLOW}→${NC} Installing Python 3.12.8 (this takes 5-10 minutes, check /tmp/pyenv_install.log)..."
+        if pyenv install 3.12.8 > /tmp/pyenv_install.log 2>&1; then
             PYTHON_BIN="$HOME/.pyenv/versions/3.12.8/bin/python"
             echo -e "  ${GREEN}✓${NC} Python 3.12.8 installed via pyenv"
         else
-            echo -e "  ${RED}✗${NC} Failed to install Python via pyenv"
+            echo -e "  ${RED}✗${NC} Failed to install Python via pyenv (check /tmp/pyenv_install.log)"
         fi
     fi
 fi

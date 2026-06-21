@@ -11,16 +11,16 @@ pkill -f "listen.py" 2>/dev/null
 
 # Check if venv exists
 if [ ! -d "$VENV_DIR" ]; then
-    echo "❌ Virtual environment not found. Creating..."
-    python -m venv "$VENV_DIR"
-    "$VENV_DIR/bin/pip" install openwakeword pyaudio numpy
+    echo "❌ Virtual environment not found in $VENV_DIR."
+    echo "⚠️ Please run 'bash install.sh' from the HyprVoice repository to install dependencies properly."
+    exit 1
 fi
 
 echo "🚀 Starting HyprVoice Listener..."
 
 # Run in bash (not fish) to avoid activation issues
 # Use absolute path to Python to avoid shell issues
-nohup "$VENV_DIR/bin/python" "$LISTEN_SCRIPT" > /tmp/voice-listener.log 2>&1 &
+nohup "$VENV_DIR/bin/python" -u "$LISTEN_SCRIPT" > /tmp/voice-listener.log 2>&1 &
 
 disown
 

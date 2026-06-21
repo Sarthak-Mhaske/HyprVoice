@@ -139,17 +139,10 @@ yt_music_url_from_query() {
 }
 
 launch_in_workspace_silent() {
-    # Launch command on a workspace without stealing focus (Hyprland feature)
     local workspace="$1"
     local cmd="$2"
 
-    if [[ -n "$workspace" ]]; then
-        # IMPORTANT: silence stdout ("ok")
-        hyprctl dispatch exec "[workspace ${workspace} silent]" "$cmd" >/dev/null 2>&1 || return 1
-        return 0
-    fi
-
-    # No workspace requested -> normal background exec
+    # Hyprland v0.55.2 dispatch syntax is currently broken, bypass it and run natively
     nohup bash -lc "$cmd" >/dev/null 2>&1 &
     disown 2>/dev/null || true
     return 0
