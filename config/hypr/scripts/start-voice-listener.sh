@@ -20,7 +20,7 @@ echo "🚀 Starting HyprVoice Listener..."
 
 # Run in bash (not fish) to avoid activation issues
 # Use absolute path to Python to avoid shell issues
-nohup "$VENV_DIR/bin/python" "$LISTEN_SCRIPT" >> /tmp/voice-listener.log 2>&1 &
+nohup "$VENV_DIR/bin/python" "$LISTEN_SCRIPT" > /tmp/voice-listener.log 2>&1 &
 
 disown
 

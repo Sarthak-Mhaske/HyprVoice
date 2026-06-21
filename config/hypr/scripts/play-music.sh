@@ -123,7 +123,7 @@ yt_music_url_from_query() {
 
     # yt-dlp top-result ID (your original strategy)
     local id=""
-    id=$(yt-dlp --get-id "ytsearch1:${q}" 2>/dev/null | head -1) || id=""
+    id=$(timeout 10s yt-dlp --no-warnings --get-id "ytsearch1:${q}" 2>/dev/null | head -1) || id=""
 
     if [[ -n "$id" ]]; then
         log "Found video ID: $id"
@@ -158,7 +158,7 @@ launch_in_workspace_silent() {
 find_latest_yt_music_window() {
     # Try multiple times to find the newest YT Music PWA window address
     local addr=""
-    for _ in 1 2 3 4 5 6 7 8; do
+    for _ in {1..15}; do
         addr=$(hyprctl clients -j 2>/dev/null | jq -r '
             .[] | select(.class | test("music\\.youtube"; "i")) | .address
         ' 2>/dev/null | head -1) || addr=""
